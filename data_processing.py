@@ -72,6 +72,22 @@ def port_to_range_ints(port_str: str) -> tuple[int, int]:
     :param port_str: the port value or range
     :return: (start_port, end_port)
     """
+    port_str = port_str.strip()
+    if not port_str or port_str.lower() == "any":   # "any" port / not specified
+        return 0, 65535
+
+    if "-" in port_str:   # ranged port
+        try:
+            start, end = port_str.split('-', 1)
+            return int(start.strip()), int(end.strip())
+        except ValueError:
+            pass
+
+    try:  # single port value
+        p = int(port_str)
+        return p, p
+    except ValueError:
+        return 0, 65535
 
 
 def parse_xml():
