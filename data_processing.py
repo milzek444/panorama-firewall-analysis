@@ -35,6 +35,35 @@ def ip_to_range_ints(ip_str: str) -> tuple[int, int, int]:
     :param ip_str: IP address
     :return: (start_integer, end_integer, ip_version), where ip_version is either 4 (ipv4) or 6 (ipv6)
     """
+    ip_str = ip_str.strip()
+    if not ip_str:  # if the string is blank
+        return 0, 0, 4
+
+    is_ipv6 = ":" in ip_str   # check if IPv4 or IPv6
+    version = 6 if is_ipv6 else 4
+    if is_ipv6:
+        max_int = 2**128 - 1
+    else:
+        max_int = 2**32 - 1
+
+    if ip_str.lower() == "any":
+        return 0, max_int, version
+
+    # "-" means ranged IP string. here, get the two integers from start and end of the range.
+    if '-' in ip_str:
+        try:
+            start, end = ip_str.split('-')
+            return int(ipaddress.ip_address(start.strip())), int(ipaddress.ip_address(end.strip())), version
+        except ValueError:   # invalid arg value but correct data type
+            pass
+
+    try:  # Convert IP into a network object and convert the first and last IPs into integers
+        net = ipaddress.ip_network(ip_str, strict=False)
+        return int(net.network_address), int(net.broadcast_address), version
+        # single IP addresses have identical network and broadcast addresses
+    except ValueError:
+        return 0, 0, version
+
 
 def port_to_range_ints(port_str: str) -> tuple[int, int]:
     """
