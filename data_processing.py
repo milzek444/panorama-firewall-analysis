@@ -29,7 +29,7 @@ def parse_xml():
 
 def parse_objects():
     """
-    Extracts and processes Panorama objects from the running configuration.
+    Extracts and processes Address objects & Address Group objects from the running configuration.
     :param: XML File
     :return: List of all objects that fit the required tags, + their required info: IP, etc.
     """
