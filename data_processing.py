@@ -8,6 +8,27 @@ on firewall XML configuration and CSV traffic data prior to main  analysis
 import ipaddress  # for handling IP addresses
 import socket  # for reverse DNS queries
 import csv    # for handling traffic logs
+from dataclasses import dataclass   # for firewall rule dataclass
+
+
+@dataclass()
+class FirewallRule:
+    src_ip_start: int
+    src_ip_end: int
+    dst_ip_start: int
+    dst_ip_end: int
+    src_port_start: int
+    src_port_end: int
+    dst_port_start: int
+    dst_port_end: int
+    action: str   # allow / deny
+    protocol: str
+    src_expected_identity: str | None    # from XML, e.g., "Finance-Server"
+    src_observed_identity: str | None    # (p2) from reverse DNS, e.g., "finance-01.york.ac.uk"
+                                         # if IP is in traffic logs, expected = observed
+                                         # else, do reverse DNS, then record that as observed
+
+
 
 def parse_xml():
     """
