@@ -28,6 +28,21 @@ class FirewallRule:
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
+def ip_to_range_ints(ip_str: str) -> tuple[int, int, int]:
+    """
+    Converts IP Strings into a pair of integers representing the start and end of the range
+    Static single IP addresses have identical start and end values
+    :param ip_str: IP address
+    :return: (start_integer, end_integer, ip_version), where ip_version is either 4 (ipv4) or 6 (ipv6)
+    """
+
+def port_to_range_ints(port_str: str) -> tuple[int, int]:
+    """
+    Converts a port string or range into a pair of integers representing the start and end of the range
+    Single port values have identical start and end values
+    :param port_str: the port value or range
+    :return: (start_port, end_port)
+    """
 
 
 def parse_xml():
@@ -39,15 +54,12 @@ def parse_xml():
     for P2: all data in format of (protocol, sourceIP, destinationIP, destinationPort, action), and if object is used
     for sourceIP, object's name recorded in panorama (which links to sourceIP)
 
-    and for considering NAT/CIDR:
-    NAT: for P1, <nat> tags to be used to translate IPs. NAT is not needed here; NAT is for translating IPs during live
-    transmissions, our work is a static configuration review
+    and for considering CIDR:
 
     CIDR subnets, variable IP & port ranges: python libraries like ipaddress can convert CIDR subnets into ranged
     numerical integers, also consisting of a start and end value.
-
-
     """
+
     print("Calling parse_xml...")
 
 def parse_objects():
