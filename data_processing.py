@@ -5,7 +5,9 @@ This module provides reusable utility functions that conduct  parsing, validatin
 on firewall XML configuration and CSV traffic data prior to main  analysis
 
 """
-
+import ipaddress  # for handling IP addresses
+import socket  # for reverse DNS queries
+import csv    # for handling traffic logs
 
 def parse_xml():
     """
