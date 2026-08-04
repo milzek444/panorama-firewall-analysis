@@ -11,8 +11,9 @@ import socket  # for reverse DNS queries
 import csv    # for handling traffic logs
 from dataclasses import dataclass   # for firewall rule dataclass
 import xml.etree.ElementTree as ET   # for parsing XML
-# from panos.panorama import Panorama
-# from panos.errors import PanDeviceError
+# For the following imports, must have pan-os-python SDK installed using pip
+from panos.panorama import Panorama
+from panos.errors import PanDeviceError
 
 
 @dataclass()
@@ -94,7 +95,7 @@ def port_to_range_ints(port_str: str) -> tuple[int, int]:
         return 0, 65535
 
 
-def parse_xml():
+def parse_xml(xml_data: str) -> list[dict]:
     """
     Parses the Panorama XML running configuration and extracts relevant firewall policy and configuration data.
     :param: xml file
@@ -108,8 +109,27 @@ def parse_xml():
     CIDR subnets, variable IP & port ranges: python libraries like ipaddress can convert CIDR subnets into ranged
     numerical integers, also consisting of a start and end value.
     """
-
     print("Calling parse_xml...")
+    root = ET.fromstring(xml_data)   #turn raw XML string into a live, searchable tree in memory
+    # root becomes root node of entire config tree
+    raw_rules = []
+    for rule in root.findall(".//security/rules/entry"):   # .// is XPath syntax; search anywhere at any depth
+        # extract rule attributes and put into dictionary "rule_data"
+        # this dictionary is then used as an arg for function to normalise
+        rule_data = {
+            "name": rule.get("name"),
+            "protocol": "tcp",
+            "sources": [m.text for m in rule.findall(".//source/member")],  # get all source IPs wrapped in <member>
+            "destinations": [m.text for m in rule.findall(".//destination/member")],
+            "src_ports": ["any"],
+            "dst_ports": [m.text for m in rule.findall(".//service/member")],
+            "action": rule.findtext("action", "allow")  # look for <action> tags, if missing from XML,
+                                                                    # then default to "allow"
+        }
+        raw_rules.append(rule_data)
+
+    return raw_rules
+
 
 def parse_objects():
     """
