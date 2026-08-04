@@ -5,10 +5,14 @@ This module provides reusable utility functions that conduct  parsing, validatin
 on firewall XML configuration and CSV traffic data prior to main  analysis
 
 """
+import io
 import ipaddress  # for handling IP addresses
 import socket  # for reverse DNS queries
 import csv    # for handling traffic logs
 from dataclasses import dataclass   # for firewall rule dataclass
+import xml.etree.ElementTree as ET   # for parsing XML
+# from panos.panorama import Panorama
+# from panos.errors import PanDeviceError
 
 
 @dataclass()
