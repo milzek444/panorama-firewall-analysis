@@ -28,6 +28,7 @@ class FirewallRule:
     dst_port_end: int
     action: str   # allow / deny
     protocol: str
+    ip_version: int   # 4 or 6, used to prevent cross-protocol mixing
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server"
     src_observed_identity: str | None    # (p2) from reverse DNS, e.g., "finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
@@ -131,13 +132,48 @@ def parse_xml(xml_data: str) -> list[dict]:
     return raw_rules
 
 
-def parse_objects():
+def parse_objects(raw_rules: list[dict], objects_registry: dict) -> list[FirewallRule]:
     """
     Extracts and processes Address objects & Address Group objects from the running configuration.
-    :param: XML File
+    :param: utilises
     :return: List of all objects that fit the required tags, + their required info: IP, etc.
     """
     print("Calling parse_objects...")
+    normalised_rules = []
+
+    for raw in raw_rules:   # produced by parse_xml function
+        for src in raw["sources"]:  # all source IPs
+            for dst in raw["destinations"]:  # all destination IPs
+                for dst_port in raw["dst_ports"]:
+                    src_xml_object = src if src in objects_registry else None
+                    dst_xml_object = dst if dst in objects_registry else None
+                    src_ip_raw = objects_registry[src]["ip"] if src_xml_object else src
+                    dst_ip_raw = objects_registry[src]["ip"] if dst_xml_object else dst
+                    src_start, src_end, src_version = ip_to_range_ints(src_ip_raw)
+                    dst_start, dst_end, dst_version = ip_to_range_ints(dst_ip_raw)
+
+                    protoc = "tcp"
+                    if "udp" in dst_port.lower():
+                        protoc = "udp"
+
+                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"])
+                    d_port_start, d_port_end = port_to_range_ints(dst_port)
+
+                    rule_obj = FirewallRule(
+                        ip_version=src_version,
+                        protocol=protoc,
+                        src_ip_start=src_start,
+                        src_ip_end=src_end,
+                        dst_ip_start=dst_start,
+                        dst_ip_end=dst_end,
+                        src_port_start=s_port_start,
+                        src_port_end=s_port_end,
+                        dst_port_start=d_port_start,
+                        dst_port_end=d_port_end,
+                        action=raw["action"],
+                    )
+                    normalised_rules.append(rule_obj)
+    return normalised_rules
 
 def search_traffic():
     """
