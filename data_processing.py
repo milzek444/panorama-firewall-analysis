@@ -32,7 +32,7 @@ class FirewallRule:
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
     src_observed_identity: str | None
-    dst_observed_identity: str | None    # (p2) from reverse DNS, e.g., "finance-01.york.ac.uk"
+    dst_observed_identity: str | None    # (p2) from reverse DNS, e.g.,"finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
