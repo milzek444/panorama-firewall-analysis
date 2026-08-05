@@ -29,8 +29,10 @@ class FirewallRule:
     action: str   # allow / deny
     protocol: str
     ip_version: int   # 4 or 6, used to prevent cross-protocol mixing
-    src_expected_identity: str | None    # from XML, e.g., "Finance-Server"
-    src_observed_identity: str | None    # (p2) from reverse DNS, e.g., "finance-01.york.ac.uk"
+    src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
+    dst_expected_identity: str | None
+    src_observed_identity: str | None
+    dst_observed_identity: str | None    # (p2) from reverse DNS, e.g., "finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
@@ -171,6 +173,8 @@ def parse_objects(raw_rules: list[dict], objects_registry: dict) -> list[Firewal
                         dst_port_start=d_port_start,
                         dst_port_end=d_port_end,
                         action=raw["action"],
+                        src_expected_identity=src_xml_object,
+                        dst_expected_identity=dst_xml_object
                     )
                     normalised_rules.append(rule_obj)
     return normalised_rules
