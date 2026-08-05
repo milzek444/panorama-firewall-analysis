@@ -227,7 +227,7 @@ def reverse_dns(ip: str) -> str | None:
         return None
 
     try:
-        ip = str(ipaddress.ip_address(ip))
+        ip = str(ipaddress.ip_address(ip))  # use.exploded on the end if any issues occur here
     except ValueError:
         pass
 
