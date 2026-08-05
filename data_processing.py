@@ -179,11 +179,12 @@ def parse_objects(raw_rules: list[dict], objects_registry: dict) -> list[Firewal
                     normalised_rules.append(rule_obj)
     return normalised_rules
 
-def search_traffic():
+def search_traffic(csv_data: str, target_ip: str) -> tuple[bool, str | None]:
     """
     Searches through firewall traffic log CSV data to identify recent activity associated with objects.
     :param: CSV file, IP from some given tuple
     :return: return if IP is present (True/False) + if IP is present, the observed identity
+    The tuple return is boolean (true/false, if the IP is present), then observed identity if present, else nothing
     """
     print("Calling search_traffic...")
 
