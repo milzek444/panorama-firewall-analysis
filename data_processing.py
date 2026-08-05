@@ -215,13 +215,35 @@ def search_traffic(csv_data: str, target_ip: str) -> tuple[bool, str | None]:
 
 
 
-def reverse_dns():
+def reverse_dns(ip: str) -> str | None:
     """
     Performs reverse DNS lookups to resolve IP addresses to their corresponding hostnames for validation.
     :param: object IP (for IPs not present in traffic)
     :return: object name (observed identity)
     """
     print("Calling reverse_dns...")
+    ip = ip.strip()
+    if not ip or ip.lower() == 'any':
+        return None
+
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        pass
+
+    if ip in dns_cache:
+        return dns_cache[ip]
+
+    try:
+        socket.setdefaulttimeout(1.0)
+        hostname, aliases, ips = socket.gethostbyaddr(ip)
+        dns_cache[ip] = hostname
+        return hostname
+    except (socket.herror, socket.timeout):
+        dns_cache[ip] = None
+        return None
+
+
 
 def normalise_policy():
     """
