@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET   # for parsing XML
 from panos.panorama import Panorama
 from panos.errors import PanDeviceError
 
+dns_cache = {}    # store information about queried IPs and their observed identities
 
 @dataclass()
 class FirewallRule:
@@ -31,7 +32,7 @@ class FirewallRule:
     ip_version: int   # 4 or 6, used to prevent cross-protocol mixing
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
-    src_observed_identity: str | None
+    src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead
     dst_observed_identity: str | None    # (p2) from reverse DNS, e.g.,"finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
@@ -187,6 +188,32 @@ def search_traffic(csv_data: str, target_ip: str) -> tuple[bool, str | None]:
     The tuple return is boolean (true/false, if the IP is present), then observed identity if present, else nothing
     """
     print("Calling search_traffic...")
+    csv_file = io.StringIO(csv_data.strip())  # set up the reader
+    reader = csv.DictReader(csv_file)
+
+    try:
+        target_obj = ipaddress.ip_address(target_ip.strip())   # set the target_ip passed in as the search target
+    except ValueError:
+        return False, None
+
+    for row in reader:
+        # get source and dest. address fields from each row
+        src_ip_str = row.get("Source address", row.get("source", "")).strip()
+        dst_ip_str = row.get("Destination address", row.get("destination", "")).strip()
+
+        for current_log_ip in [src_ip_str, dst_ip_str]:  # go through each of the two IPs
+            try:
+                if current_log_ip and ipaddress.ip_address(current_log_ip) == target_obj: # if current IP present in row
+                    if current_log_ip == src_ip_str: #...and the current IP is the source IP, return it
+                        return True, row.get("Source User", row.get("src_object", "Matched Source"))
+                    else:
+                        return True, row.get("Destination User", row.get("dst_object", "Matched Destination"))
+            except ValueError:
+                continue
+
+    return False, None
+
+
 
 def reverse_dns():
     """
