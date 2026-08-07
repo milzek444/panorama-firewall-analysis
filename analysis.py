@@ -7,7 +7,7 @@ This module contains the primary methods for inter-firewall policy analysis and 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from collections import defaultdict
-from data_processing import FirewallRule
+from data_processing import FirewallRule, parse_objects, search_traffic, reverse_dns
 
 @dataclass
 class PolicyContradiction:
@@ -64,7 +64,6 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
         for p_rule in p_rules:
             for i_rule in i_rules:
                 # Check destination IP range overlap
-
                 dst_overlap = (max(p_rule.dst_start, i_rule.dst_start) <= min(p_rule.dst_end, i_rule.dst_end))
                 if not dst_overlap:
                     continue  # skips the rest of the code
@@ -81,7 +80,6 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
                 security_impact = "Operational disruption or unexpected traffic drops for authorised services."
 
                 # Evaluate port & subnet contradictions between perimeter and internal FWs
-
                 p_port_span = p_rule.dst_port_end - p_rule.dst_port_start
                 i_port_span = i_rule.dst_port_end - i_rule.dst_port_start
 
@@ -115,3 +113,73 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
                 ))
 
     return contradictions
+
+
+
+def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[FirewallRule]) -> list[ObjectAnomaly]:
+    """
+    Flags stale, decommissioned or mismatched Panorama Object identities by correlating running configuration data,
+    traffic logs and parsed rules
+    :param xml_data:
+    :param csv_data:
+    :param all_rules:
+    :return:
+    """
+    anomalies = []
+
+    # 1. Gather filtered HOST components using existing logic
+    objects_registry = parse_objects(xml_data)   # get all objects from XML config doc and put in this
+    policy_tree = build_policy_tree(all_rules)  # build_policy_tree to be added afterwards
+
+    # Internal helper to find any rules in policy tree that use a given object, by running structural tree queries
+    def find_affected_rules_in_tree(object_name: str) -> list[FirewallRule]:
+        matched = []
+        for proto in policy_tree.values():
+            for src_range in proto.values():
+                for dst_range in src_range.values():
+                    for port_range in dst_range.values():
+                        for rule in port_range.get("rules", []):
+                            if rule.src_xml_object == object_name or rule.dst_xml_object == object_name:
+                                matched.append(rule)
+        return matched
+
+    for obj_name, metadata in objects_registry.items():
+        ip_addr = metadata["ip"] # metadata holds dictionary of attributes for that object, e.g., raw IP value, obj type
+        if ip_addr == "Group Reference":
+            continue  # Bypass address group structural headers, target individual hosts only
+
+        # Correlate with traffic logs using search logic; for each obj, run search_traffic helper and return T/F if seen
+        seen_in_traffic, _ = search_traffic(csv_data, ip_addr)
+
+        if not seen_in_traffic:  # if the object is not found in CSV, then it's probably inactive or decommissioned
+            # Classify as potentially inactive or decommissioned
+            affected = find_affected_rules_in_tree(obj_name) # link all rules that use this object
+            anomalies.append(ObjectAnomaly(
+                category="Decommissioned Object",
+                object_name=obj_name,
+                ip_address=ip_addr,
+                expected_hostname=obj_name,  # ITS Object name reflects expected identity
+                observed_hostname=None,
+                affected_rules=affected
+            ))
+        else:   # if the IP IS active in traffic, DNS querying used to find who current uses/owns it
+            observed_dns = reverse_dns(ip_addr)
+            if observed_dns:
+                # Basic ITS baseline check: Verify if object name matches or is contained inside DNS string
+                # e.g., if object name is "ITS-WEB-SRV01" but resolves to "honeypot.campus.edu"
+                expected_clean = obj_name.lower().replace("-", "")
+                observed_clean = observed_dns.lower().replace("-", "")
+                # if the expected identity holding object (from Panorama) != observed one from DNS, IP likely reassigned
+                # but still points to old name, so it's assigned an "IP reuse mismatch" anomaly
+                if expected_clean not in observed_clean and observed_clean not in expected_clean:
+                    affected = find_affected_rules_in_tree(obj_name)
+                    anomalies.append(ObjectAnomaly(
+                        category="IP Reuse Mismatch",
+                        object_name=obj_name,
+                        ip_address=ip_addr,
+                        expected_hostname=obj_name,
+                        observed_hostname=observed_dns,
+                        affected_rules=affected
+                    ))
+
+    return anomalies
