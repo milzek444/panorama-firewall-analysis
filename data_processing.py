@@ -245,18 +245,3 @@ def reverse_dns(ip: str) -> str | None:
 
 
 
-def normalise_policy():
-    """
-    Normalises given firewall data into a consistent tuple format suitable for automated comparison
-    and analysis.
-    :param: for a given rule:
-    (p1) source IP+dest IP, protocol, source+dest port, action
-    (p2) source IP, expected identity from XML, observed identity from CSV/DNS, dest IP, dest port
-    ** must account for ranged IPs/ports too
-    :return: policy tree units, all of these organised into a tuple,
-    + for p2: where source IP is paired with object name
-    """
-    print("Calling normalise_policy...")
-
-
-
