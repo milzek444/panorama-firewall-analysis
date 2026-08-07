@@ -184,17 +184,49 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
 
     return anomalies
 
-def generate_final_report(contradicts: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> str:
+def generate_final_report(contradictions: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> str:
     """
     Consolidates findings from cross-firewall and configuration anomaly analysis into actionable reports and XML fixes
     for the administrator.
     """
     report_output = []
-
+    report_output.append("=" * 40)
+    report_output.append("PANORAMA FIREWALL SECURITY & CONFIGURATION AUDIT REPORT")
+    report_output.append("=" * 40 + "\n")
     # Section 1: Policy Contradiction
+    report_output.append("1: INTER-FIREWALL POLICY CONTRADICTIONS")
+    report_output.append("-" * 40)
+    if not contradictions:
+        report_output.append("No inter-firewall policy contradictions identified between the perimeter "
+                             "and downstream firewalls.\n")
+    for idx, con in enumerate(contradictions, 1):  # go through each inter-firewall contradiction found
+        report_output.append(f"  [{idx}] Category: {con.category}")
+        report_output.append(f"      Description: {con.description}")
+        report_output.append(f"      Security Impact: {con.security_impact}")
+        report_output.append(
+            #f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_xml_object}) -> Dst Object ({con.perimeter_rule.dst_xml_object})")
+            f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_expected_identity}) -> Dst Object"
+            f" ({con.perimeter_rule.dst_expected_identity})")
+        report_output.append(f"      Internal Blocking Rule: Action ({con.internal_rule.action.upper()})\n")
 
     # Section 2: Asset inactivity & Identity Reassignments
+    report_output.append("2. CONFIGURATION OBJECT & IDENTITY VALIDATION")
+    report_output.append("-" * 40)
+    if not anomalies:
+        report_output.append("All parsed configuration host mappings match active network states.\n")
+    for idx, anom in enumerate(anomalies, 1):
+        report_output.append(f"  [{idx}] Category: {anom.category}")
+        report_output.append(f"      Object Ref: {anom.object_name} ({anom.ip_address})")
+        if anom.category == "Decommissioned Object":
+            report_output.append(f"      Reason: Zero matching entries found across recent traffic data.")
+            report_output.append(f"      Operational Risk: Orphaned rule configuration overhead.")
+        else:
+            report_output.append(f"      Expected Identity: {anom.expected_hostname}")
+            report_output.append(f"      Observed Identity (DNS): {anom.observed_hostname}")
+            report_output.append(f"      Operational Risk: Threat vector. IP address reassigned without rule update.")
+        report_output.append(f"      Impacted Policy Paths Count: {len(anom.affected_rules)} rules\n")
 
+    return "\n".join(report_output)
 
 def generate_panorama_payloads(self) -> dict[str, list[str]]:
     """
