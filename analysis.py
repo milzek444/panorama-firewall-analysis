@@ -228,15 +228,38 @@ def generate_final_report(contradictions: list[PolicyContradiction], anomalies: 
 
     return "\n".join(report_output)
 
-def generate_panorama_payloads(self) -> dict[str, list[str]]:
+def generate_panorama_payloads(contradictions: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> dict[str, list[str]]:
     """
     Constructs valid Panorama XML API payloads for remediation.
     Returns a dictionary mapping object groups to XML elements.
     """
     payloads = defaultdict(list)  # benefits of defaultdict mentioned earlier
+    for anom in anomalies:
+        #1: Remediation for decommissioned objects (API query for deletion)
+        if anom.category == "Decommissioned Object":
+            # Constructing structural API command elements to delete target address elements safely
+            xml_delete = f"<delete xpath=\"/config/shared/address/entry[@name='{anom.object_name}']\"/>"
+            payloads["decommission_cleanup"].append(xml_delete)
 
-    #1: Remediation for decommissioned objects (API query for deletion)
+        elif anom.category == "IP Reuse Mismatch" and anom.observed_hostname:
+            #2: Remediation for reused IP for objects (generate tracking Tag updates to isolate entry)
+            xml_tag_update = (
+                f"<set xpath=\"/config/shared/address/entry[@name='{anom.object_name}']/tag\">"
+                f"<member>FLAG-REUSED-IDENTITY</member>"
+                f"</set>"
+            )
+            payloads["identity_updates"].append(xml_tag_update)
 
-    #2: Remediation for reused IP for objects (generate tracking Tag updates to isolate entry)
+        #3: Remediation for policy/rule contradictions
+        for con in contradictions:
+            if con.category == "Broad Port Exposure":
+                # Injecting safety comments or administrative logging rules for optimisation pipelines
+                # For safety we tag rules requiring review instead of dropping policies automatically
+                xml_policy_tag = (
+                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
+                    f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
+                    f"</set>"
+                )
+                payloads["policy_review_tags"].append(xml_policy_tag)
 
-    #3: Remediation for policy/rule contradictions (generate safety audit log tags for rule grouping)
+    return dict(payloads)
