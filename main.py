@@ -1,3 +1,4 @@
+"""main.py"""
 from panos.panorama import Panorama
 from panos.errors import PanDeviceError
 import xml.etree.ElementTree as ET
