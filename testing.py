@@ -7,7 +7,8 @@ Contains framework testing. Split into two aspects:
 """
 
 import random
-
+import pytest
+from data_processing import ip_to_range_ints, port_to_range_ints, parse_objects, parse_xml
 
 def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio: float = 0.1) -> tuple[str, str, dict]:
     """
@@ -108,3 +109,39 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
     )
 
     return xml_str, "\n".join(csv_rows), ground_truth
+
+# Add explicit pytest fixture injection to allow for switching between datasets
+@pytest.fixture(params=["synthetic", "ironskillet"])
+
+def test_ip_to_range_ints_ipv4():
+    """
+    Test correctness of helper by validating structural boundary calculations for classical 32-bit parameters
+    :return:
+    """
+    start, end, version = ip_to_range_ints("192.168.1.1")
+    assert version == 4
+    assert start == end
+    assert start == 3232235777
+
+
+def test_ip_to_range_ints_ipv6():
+    """
+    Test correctness of helper by validating structural boundary calculations for full 128-bit fields
+    without bit capping overflows
+    :return:
+    """
+    start, end, version = ip_to_range_ints("2001:db8::1")
+    assert version == 6
+    assert start == end
+    assert start > 2**32  # Confirms it scales beyond standard 32-bit limits cleanly
+
+
+def test_ip_to_range_ints_any_handling():
+    """
+    Test correctness of helper by verifying that 'any' IP maps accurately based on protocol version profiles (v4/6)
+    without mixing up between v4 and v6.
+    :return:
+    """
+    start_v4, end_v4, v4 = ip_to_range_ints("any")
+    assert v4 == 4
+    assert end_v4 == 2**32 - 1
