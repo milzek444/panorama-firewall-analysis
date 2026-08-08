@@ -145,3 +145,15 @@ def test_ip_to_range_ints_any_handling():
     start_v4, end_v4, v4 = ip_to_range_ints("any")
     assert v4 == 4
     assert end_v4 == 2**32 - 1
+
+def test_parse_objects_filtering(xml_dataset):
+    """
+    Ensures parser only extracts objects matching the correct tag
+    :param xml_dataset:
+    :return:
+    """
+    registry = parse_objects(xml_dataset)
+    assert isinstance(registry, dict)
+    for name, meta in registry.items():
+        assert "ip" in meta
+        assert meta["type"] in ["ip-netmask", "ip-range", "ip-wildcard", "fqdn", "address-group"]
