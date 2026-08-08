@@ -193,16 +193,17 @@ def generate_final_report(contradictions: list[PolicyContradiction], anomalies: 
     report_output.append("=" * 40)
     report_output.append("PANORAMA FIREWALL SECURITY & CONFIGURATION AUDIT REPORT")
     report_output.append("=" * 40 + "\n")
-    # Section 1: Policy Contradiction
+    # Section 1: Policy Contradiction; prints out list of policy contradictions
     report_output.append("1: INTER-FIREWALL POLICY CONTRADICTIONS")
     report_output.append("-" * 40)
     if not contradictions:
         report_output.append("No inter-firewall policy contradictions identified between the perimeter "
                              "and downstream firewalls.\n")
     for idx, con in enumerate(contradictions, 1):  # go through each inter-firewall contradiction found
-        report_output.append(f"  [{idx}] Category: {con.category}")
+        report_output.append(f"  [{idx}] Category: {con.category}")  # idx prints out index number [1], [2], etc.
         report_output.append(f"      Description: {con.description}")
         report_output.append(f"      Security Impact: {con.security_impact}")
+        # extract info from the underlying rules causing the mismatch, so the admin knows which assets are affected
         report_output.append(
             #f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_xml_object}) -> Dst Object ({con.perimeter_rule.dst_xml_object})")
             f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_expected_identity}) -> Dst Object"
@@ -234,15 +235,20 @@ def generate_panorama_payloads(contradictions: list[PolicyContradiction], anomal
     Returns a dictionary mapping object groups to XML elements.
     """
     payloads = defaultdict(list)  # benefits of defaultdict mentioned earlier
-    for anom in anomalies:
+    for anom in anomalies: # go through all panorama anomalies
         #1: Remediation for decommissioned objects (API query for deletion)
         if anom.category == "Decommissioned Object":
-            # Constructing structural API command elements to delete target address elements safely
+            # Construct an API delete request targeting specific XML node path
+            # Case 1: If asset is stale, build API delete request targeting that
+            # precise XML node path (/config/shared/address...)
             xml_delete = f"<delete xpath=\"/config/shared/address/entry[@name='{anom.object_name}']\"/>"
             payloads["decommission_cleanup"].append(xml_delete)
 
         elif anom.category == "IP Reuse Mismatch" and anom.observed_hostname:
             #2: Remediation for reused IP for objects (generate tracking Tag updates to isolate entry)
+            # Case 2: If asset has identity mismatch, build API set statement that adds tag onto object
+            # FLAG-REUSED-IDENTITY tag on the object allows for administrators to easily isolate it in
+            # Panorama's web interface
             xml_tag_update = (
                 f"<set xpath=\"/config/shared/address/entry[@name='{anom.object_name}']/tag\">"
                 f"<member>FLAG-REUSED-IDENTITY</member>"
@@ -250,16 +256,16 @@ def generate_panorama_payloads(contradictions: list[PolicyContradiction], anomal
             )
             payloads["identity_updates"].append(xml_tag_update)
 
-        #3: Remediation for policy/rule contradictions
-        for con in contradictions:
-            if con.category == "Broad Port Exposure":
-                # Injecting safety comments or administrative logging rules for optimisation pipelines
-                # For safety we tag rules requiring review instead of dropping policies automatically
-                xml_policy_tag = (
-                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
-                    f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
-                    f"</set>"
-                )
-                payloads["policy_review_tags"].append(xml_policy_tag)
+    #3: Remediation for policy/rule contradictions
+    for con in contradictions:
+        if con.category == "Broad Port Exposure":
+            # Injecting safety comments or administrative logging rules for optimisation pipelines
+            # For safety we tag rules requiring review instead of dropping policies automatically
+            xml_policy_tag = (
+                f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
+                f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
+                f"</set>"
+            )
+            payloads["policy_review_tags"].append(xml_policy_tag)
 
     return dict(payloads)
