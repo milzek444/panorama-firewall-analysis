@@ -32,6 +32,9 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
     """
     Identifies policy contradictions where a perimeter ALLOW rule is blocked
     by an internal downstream firewall's non-ALLOW policy.
+    :param all_rules:
+    :param perimeter_name:
+    :return:
     """
     contradictions = []  # hold the contradictions
 
@@ -188,6 +191,9 @@ def generate_final_report(contradictions: list[PolicyContradiction], anomalies: 
     """
     Consolidates findings from cross-firewall and configuration anomaly analysis into actionable reports and XML fixes
     for the administrator.
+    :param contradictions:
+    :param anomalies:
+    :return:
     """
     report_output = []
     report_output.append("=" * 40)
@@ -232,7 +238,9 @@ def generate_final_report(contradictions: list[PolicyContradiction], anomalies: 
 def generate_panorama_payloads(contradictions: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> dict[str, list[str]]:
     """
     Constructs valid Panorama XML API payloads for remediation.
-    Returns a dictionary mapping object groups to XML elements.
+    :param contradictions:
+    :param anomalies:
+    :return: a dictionary mapping object groups to XML elements
     """
     payloads = defaultdict(list)  # benefits of defaultdict mentioned earlier
     for anom in anomalies: # go through all panorama anomalies
