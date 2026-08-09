@@ -4,6 +4,10 @@ testing.py
 Contains framework testing. Split into two aspects:
 1) Testing of the helper functions in data_processing.py
 2) Testing of the program's collective functionality
+
+Instructions to run:
+1) Install required dependencies via pip install (pytest, matplotlib, unittest mock)
+2) Run pytest testing.py -v (correctness verification & parser test suite)
 """
 
 import random
