@@ -15,8 +15,9 @@ import time
 from unittest import mock
 import plt
 import pytest
-from analysis import (PolicyContradiction, ObjectAnomaly, FirewallRule, generate_final_report,
-                      analyse_inter_firewall_policies, analyse_config_objects, generate_panorama_payloads)
+from analysis import (PolicyContradiction, ObjectAnomaly, FirewallRule,
+                      analyse_inter_firewall_policies, analyse_config_objects,
+                      ReportingRemediationEngine)
 from data_processing import ip_to_range_ints, port_to_range_ints, parse_objects, parse_xml
 
 ########################################################
@@ -346,15 +347,16 @@ def test_reporting_engine_output_logic(mock_anomalies):
     :return:
     """
     contradictions, anomalies = mock_anomalies
+    engine = ReportingRemediationEngine(contradictions, anomalies)
 
     # 1: Verify text report output strings
-    report = generate_final_report(contradictions, anomalies)
+    report = engine.generate_final_report()
     assert "FIREWALL SECURITY & CONFIGURATION AUDIT REPORT" in report
     assert "Broad Port Exposure" in report
     assert "CRITICAL-DB-HOST" in report
 
     # 2: Verify generation of clean XML remediation payloads
-    xml_payloads = generate_panorama_payloads(contradictions, anomalies)
+    xml_payloads = engine.generate_panorama_payloads()
     assert "decommission_cleanup" in xml_payloads
 
     # Confirm structural authenticity of Panorama API XPath target values

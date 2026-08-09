@@ -33,7 +33,7 @@ class FirewallRule:
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
     src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead
-    dst_observed_identity: str | None    # (p2) from reverse DNS, e.g.,"finance-01.york.ac.uk"
+    dst_observed_identity: str | None    # (p2) hostname from reverse DNS, e.g.,"finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
@@ -134,14 +134,59 @@ def parse_xml(xml_data: str) -> list[dict]:
 
     return raw_rules
 
-
-def parse_objects(raw_rules: list[dict], objects_registry: dict) -> list[FirewallRule]:
+def parse_objects(xml_data: str) -> dict[str, dict]:
     """
-    Extracts and processes Address objects & Address Group objects from the running configuration.
+    Extracts and processes Address objects & Address Group objects from the running configuration
+    :param xml_data:
+    :return:
+    """
+    root = ET.fromstring(xml_data)
+    objects_registry = {}
+    group_tags = {}
+
+    def get_tags(elem):
+        return [t.text for t in elem.findall(".//tag/member")]
+
+    for addr in root.findall(".//address/entry"):  # go through all addr. object entries, get their names and tags
+        name = addr.get("name")
+        tags = get_tags(addr)
+
+        if "HOST" in tags:   # ITS regulations say that "HOST" tagged devices can be
+                             # searched for reassignment/decommissioned
+            obj_type = None
+            ip_val = None
+            for child in addr:
+                if child.tag in ["ip-netmask", "ip-range", "ip-wildcard", "fqdn"]:  # as per ITServices regs
+                    obj_type = child.tag
+                    ip_val = child.text
+                    break
+            if name and ip_val:
+                objects_registry[name] = {"ip": ip_val, "type": obj_type}
+
+    for group in root.findall(".//address-group/entry"):  # repeat for address groups & AG objects
+        name = group.get("name")
+        group_tags[name] = get_tags(group)
+
+    for group in root.findall(".//address-group/entry"):
+        group_name = group.get("name")
+        g_tags = group_tags.get(group_name, [])
+
+        if "HOST" in g_tags:
+            for member in group.findall(".//static/member"):
+                mem_name = member.text
+                if mem_name in group_tags and "HOST-COMPONENT" in group_tags[mem_name]:
+                    objects_registry[mem_name] = {"ip": "Group Reference", "type": "address-group"}
+
+    return objects_registry
+
+
+def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> list[FirewallRule]:
+    """
+    Transforms raw parsed rule strings into complete FirewallRule dataclass instances
     :param: utilises
     :return: List of all objects that fit the required tags, + their required info: IP, etc.
     """
-    print("Calling parse_objects...")
+    print("Calling rule normalisation...")
     normalised_rules = []
 
     for raw in raw_rules:   # produced by parse_xml function
