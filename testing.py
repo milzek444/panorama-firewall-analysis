@@ -178,7 +178,6 @@ def test_parse_objects_filtering(xml_dataset):
 ########################################################
 ###           3: TESTING ALGORITHMIC ACCURACY
 ########################################################
-#*** try an ROC curve too
 def test_analysis_pipeline_accuracy():
     """
     Computes a full confusion matrix (Precision, Recall, F1)
@@ -297,8 +296,8 @@ def run_performance_benchmarks():
     plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig('firewall_performance_scaling_profiles.png')
-    print("\n[SUCCESS] Scalability chart compiled and saved as 'firewall_performance_scaling_profiles.png'")
+    plt.savefig('firewall_performance_scaling_profiles_test.png')
+    print("\n[SUCCESS] Scalability chart compiled and saved as 'firewall_performance_scaling_profiles_test.png'")
     plt.show()
 
 
@@ -347,7 +346,6 @@ def test_reporting_engine_output_logic(mock_anomalies):
     :return:
     """
     contradictions, anomalies = mock_anomalies
-    # engine = generate_final_report(contradictions, anomalies)
 
     # 1: Verify text report output strings
     report = generate_final_report(contradictions, anomalies)
