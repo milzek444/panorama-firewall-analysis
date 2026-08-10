@@ -19,11 +19,13 @@ class PolicyContradiction:
 @dataclass
 class ObjectAnomaly:
     category: str  # One of two; "Decommissioned Object", "IP Reuse Mismatch"
-    object_name: str
+    object_name: str  # Holds the exact Panorama configuration object name (e.g., HR-Database-Server)
     ip_address: str
     expected_hostname: str  # the name present in XML for that object
     observed_hostname: str | None  # the name present in CSV traffic logs / DNS resolve
-    affected_rules: list[FirewallRule] = field(default_factory=list)
+    affected_rules: list[FirewallRule] = field(default_factory=list) # for a decom. object, stores the rules that are
+                                                                     # affected/broken because of this object change
+                                                                     # mostly rules that reference these broken objects
 
 
 def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_name: str) -> list[
@@ -66,7 +68,7 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
         for p_rule in p_rules:
             for i_rule in i_rules:
                 # Check destination IP range overlap
-                dst_overlap = (max(p_rule.dst_start, i_rule.dst_start) <= min(p_rule.dst_end, i_rule.dst_end))
+                dst_overlap = (max(p_rule.dst_ip_start, i_rule.dst_start) <= min(p_rule.dst_end, i_rule.dst_end))
                 if not dst_overlap:
                     continue  # skips the rest of the code
 

@@ -31,7 +31,8 @@ class FirewallRule:
     firewall_name: str | None
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
-    src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead
+    src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead ==> no problem
+                                         # ANS) no problem in keeping it for now unless issues appear
     dst_observed_identity: str | None    # (p2) hostname from reverse DNS, e.g.,"finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
@@ -138,6 +139,10 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
     Extracts and processes Address objects & Address Group objects from the running configuration
     :param xml_data:
     :return:
+    !!!!! use of "HOST" and "HOST-COMPONENT" should not be hardcoded; should be modified to be
+    selected/inputted as argument or something similar by asking for user input or allowing for
+    other developers/versions to modify it in a clear variable
+    !!!!! same for root.findall address things here and in line 11x above
     """
     root = ET.fromstring(xml_data)
     objects_registry = {}
@@ -195,7 +200,7 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     src_xml_object = src if src in objects_registry else None
                     dst_xml_object = dst if dst in objects_registry else None
                     src_ip_raw = objects_registry[src]["ip"] if src_xml_object else src
-                    dst_ip_raw = objects_registry[src]["ip"] if dst_xml_object else dst
+                    dst_ip_raw = objects_registry[dst]["ip"] if dst_xml_object else dst
                     src_start, src_end, src_version = ip_to_range_ints(src_ip_raw)
                     dst_start, dst_end, dst_version = ip_to_range_ints(dst_ip_raw)
                     #!!!!! how about getting the src&dst observed identities
