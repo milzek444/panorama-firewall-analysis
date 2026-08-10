@@ -7,11 +7,10 @@ directly alongside theoretical Big-O complexity curves
 """
 
 import time
-import json
 import matplotlib.pyplot as plt
 from unittest import mock
 from generate_test_data import generate_synthetic_xml_and_csv
-from data_processing import parse_xml
+from data_processing import parse_xml, normalise_firewall_rules
 from analysis import analyse_inter_firewall_policies, parse_objects, analyse_config_objects
 
 
@@ -35,7 +34,8 @@ def run_performance_benchmarks():
         obj_reg = parse_objects(xml_data)
 
         # Inject structural multi-firewall boundaries into the dataclass profile objects
-        final_rules = parse_objects(raw_rules, obj_reg)
+        # final_rules = parse_objects(raw_rules, obj_reg)
+        final_rules = normalise_firewall_rules(raw_rules, obj_reg)
         for idx, r in enumerate(final_rules):
             r.firewall_name = "Sentry" if idx % 2 == 0 else "Internal-Downstream"  # !!!!! subject to change
 
@@ -48,7 +48,7 @@ def run_performance_benchmarks():
         policy_runtimes.append(policy_duration_ms)
 
         # Benchmark 2: Configuration object tracking via mock DNS
-        with mock.patch('main.reverse_dns_lookup', return_value="HOST-SRV-MOCK.campus.edu"):  # !!!!! Subject to change
+        with mock.patch('data_processing.reverse_dns', return_value="HOST-SRV-MOCK.campus.edu"):  # !!!!! Subject to change
             start_time = time.perf_counter()
             analyse_config_objects(xml_data, csv_data, final_rules)
             end_time = time.perf_counter()
@@ -61,7 +61,7 @@ def run_performance_benchmarks():
             f"Policy Analysis: {policy_duration_ms:8.2f}ms | Object Validation: {object_duration_ms:8.2f}ms")
 
     # Plot performance results using matplotlib
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(10.0, 5.0))
 
     # Plotting the policy analysis curve
     plt.subplot(1, 2, 1)

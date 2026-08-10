@@ -28,6 +28,7 @@ class FirewallRule:
     action: str   # allow / deny
     protocol: str
     ip_version: int   # 4 or 6, used to prevent cross-protocol mixing
+    firewall_name: str | None
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
     src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead
@@ -197,6 +198,7 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     dst_ip_raw = objects_registry[src]["ip"] if dst_xml_object else dst
                     src_start, src_end, src_version = ip_to_range_ints(src_ip_raw)
                     dst_start, dst_end, dst_version = ip_to_range_ints(dst_ip_raw)
+                    #!!!!! how about getting the src&dst observed identities
 
                     protoc = "tcp"
                     if "udp" in dst_port.lower():
