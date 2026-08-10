@@ -8,7 +8,7 @@ single strings vs CIDR ranges, & tagged objects.
 """
 # from generate_test_data import (IronSkillet retrieval function)
 # Assuming your source modules are inside data_processing.py
-from data_processing import ip_to_range_ints, parse_objects, parse_xml
+from data_processing import ip_to_range_ints, parse_objects
 
 def test_ip_to_range_ints_ipv4():
     """

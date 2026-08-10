@@ -4,9 +4,9 @@
 Algorithm accuracy metric evaluation; checks accuracy using a confusion matrix to calculate performance scores,
 aiming to minimise false-positive alerts on clean rules
 """
-import pytest
+#import pytest
 from generate_test_data import generate_synthetic_xml_and_csv
-from data_processing import parse_xml, parse_objects
+from data_processing import parse_xml, parse_objects, normalise_firewall_rules
 from analysis import analyse_inter_firewall_policies
 
 def test_analysis_pipeline_accuracy():
@@ -23,11 +23,11 @@ def test_analysis_pipeline_accuracy():
     obj_reg = parse_objects(xml_data)
 
     # Distribute virtual firewall boundaries across rule attributes for proper multi-firewall routing simulation
-    # !!!!! to be modified
+    # !!!!! "Sentry" & "Internal-Downstream" to be modified depending on the test data set used
     for idx, rule in enumerate(raw_rules):
         rule["firewall_name"] = "Sentry" if "_P" in rule["name"] else "Internal-Downstream"
 
-    final_rules = parse_objects(raw_rules, obj_reg)
+    final_rules = normalise_firewall_rules(raw_rules, obj_reg)
     for idx, r in enumerate(final_rules):
         r.firewall_name = "Sentry" if "_P" in raw_rules[idx // len(raw_rules)]["name"] else "Internal-Downstream"
 
@@ -35,7 +35,7 @@ def test_analysis_pipeline_accuracy():
     contradictions = analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry")
 
     # Derive statistical confusion variables
-    tp = len([c for c in contradictions if c.perimeter_rule.name in truth["expected_contradictions"]])
+    tp = len([c for c in contradictions if c.perimeter_rule.firewall_name in truth["expected_contradictions"]])
     fp = len(contradictions) - tp
     fn = truth["contradictions"] - tp
     tn = len(final_rules) - (tp + fp + fn)
@@ -47,7 +47,7 @@ def test_analysis_pipeline_accuracy():
     f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 1.0
 
     print(f"\n--- Algorithmic Accuracy Matrix Summary ---")
-    print(f"Accuracy: {accuracy:.4f} | Precision: {precision:.4f} | Recall: {recall:.4f} | F1-Score: {f1_score:.4f}")
+    print(f"Accuracy: {float(accuracy):.4f} | Precision: {precision:.4f} | Recall: {float(recall):.4f} | F1-Score: {f1_score:.4f}")
 
     # Core system health assertions
     assert precision >= 0.90, "PRECISION >= 90%: System is generating an excessive number of false-positive warnings"

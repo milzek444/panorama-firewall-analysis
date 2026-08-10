@@ -10,15 +10,15 @@ Instructions to run:
 2) Run pytest testing.py -v (correctness verification & parser test suite)
 """
 
-import random
-import time
-from unittest import mock
-import plt
-import pytest
-from analysis import (PolicyContradiction, ObjectAnomaly, FirewallRule,
-                      analyse_inter_firewall_policies, analyse_config_objects,
-                      ReportingRemediationEngine)
-from data_processing import ip_to_range_ints, port_to_range_ints, parse_objects, parse_xml
+# import random
+# import time
+# from unittest import mock
+# import plt
+# import pytest
+# from analysis import (PolicyContradiction, ObjectAnomaly, FirewallRule,
+#                       analyse_inter_firewall_policies, analyse_config_objects,
+#                       ReportingRemediationEngine)
+# from data_processing import ip_to_range_ints, port_to_range_ints, parse_objects, parse_xml
 
 ########################################################
 ###         1: SYNTHETIC TEST DATA GENERATOR

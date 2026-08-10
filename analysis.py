@@ -26,13 +26,13 @@ class ObjectAnomaly:
     affected_rules: list[FirewallRule] = field(default_factory=list)
 
 
-def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_name: str = "Sentry") -> list[
+def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_name: str) -> list[
     PolicyContradiction]:
     """
     Identifies policy contradictions where a perimeter ALLOW rule is blocked
     by an internal downstream firewall's non-ALLOW policy.
     :param all_rules:
-    :param perimeter_name:
+    :param perimeter_name: Name of perimeter firewall, e.g., "Sentry", "Perimeter"
     :return:
     """
     contradictions = []  # hold the contradictions

@@ -21,6 +21,7 @@ def mock_anomalies():
         dst_port_start=80, dst_port_end=80,
         action="deny", src_expected_identity="CRITICAL-DB-HOST", dst_expected_identity=None,
         src_observed_identity=None, dst_observed_identity=None
+        # !!!!! Add firewall_name here too
     )
 
     con = PolicyContradiction(

@@ -2,7 +2,8 @@
 from panos.panorama import Panorama
 from panos.errors import PanDeviceError
 import xml.etree.ElementTree as ET
-from data_processing import parse_objects, parse_xml
+from data_processing import parse_objects, parse_xml, normalise_firewall_rules
+
 
 class PanoramaConnection:
     # Managing secure operational connections and data collection layers with the correct intended Panorama instance.
@@ -78,7 +79,7 @@ def connect_to_panorama():
         print("SUCCESS: Connection has been authenticated.")
 
         running_config_xml = connection.download_running_config()
-        traffic_logs_csv = connection.download_traffic_logs(days=45)
+        traffic_logs_csv = connection.download_traffic_logs()
         connection.disconnect()
 
         print("\nINITIALISING PROCESSING PHASE.....")
@@ -89,7 +90,7 @@ def connect_to_panorama():
         raw_rules = parse_xml(running_config_xml)
 
         print("Generating normalised firewall rules...")
-        final_rules = parse_objects(raw_rules, objects_registry)
+        final_rules = normalise_firewall_rules(raw_rules, objects_registry)
 
         print(f"\n===================================================")
         print(f"PROCESS COMPLETE: processed {len(final_rules)} firewall rule dimensions successfully.")

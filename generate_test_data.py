@@ -62,7 +62,7 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
             csv_rows.append(f"{ip},192.168.1.1,UserA,UserB")
 
     # 2. Build Firewall rule dimensions
-    xml_rules_sentry = []
+    xml_rules_perimeter = []
     xml_rules_internal = []
 
     for r in range(num_rules):
@@ -72,7 +72,7 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
         if introduce_flaw:
             # Inject a verifiable flawed inter-firewall rule contradiction
             # Where Perimeter rules have broad ALLOW, but internal FW policy explicitly blocks subset
-            xml_rules_sentry.append(
+            xml_rules_perimeter.append(
                 f'<entry name="{rule_name}_P"><source><member>any</member></source>'
                 f'<destination><member>10.0.0.0/16</member></destination>'
                 f'<service><member>any</member></service><action>allow</action></entry>'
@@ -86,7 +86,7 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
             ground_truth["expected_contradictions"].append(f"{rule_name}_P")
         else:
             # Cohesive rule paths
-            xml_rules_sentry.append(
+            xml_rules_perimeter.append(
                 f'<entry name="{rule_name}_P"><source><member>any</member></source>'
                 f'<destination><member>10.1.0.0/24</member></destination>'
                 f'<service><member>service-tcp-443</member></service><action>allow</action></entry>'
@@ -101,7 +101,7 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
     xml_str = (
         f"<config><shared><address>{''.join(xml_objs)}</address>"
         f"<address-group></address-group>"
-        f"<rulebase><security><rules>{''.join(xml_rules_sentry)}{''.join(xml_rules_internal)}</rules></security></rulebase>"
+        f"<rulebase><security><rules>{''.join(xml_rules_perimeter)}{''.join(xml_rules_internal)}</rules></security></rulebase>"
         f"</shared></config>"
     )
 
