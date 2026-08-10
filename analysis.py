@@ -4,7 +4,6 @@ analysis.py
 This module contains the primary methods for inter-firewall policy analysis and Panorama configuration analysis
 """
 
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from collections import defaultdict
 from data_processing import FirewallRule, parse_objects, search_traffic, reverse_dns
@@ -114,9 +113,32 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
                     description=description,
                     security_impact=security_impact
                 ))
-
     return contradictions
 
+
+def build_policy_tree(all_rules: list[FirewallRule]) -> dict:
+    """
+    Constructs an optimised multi-dimensional in-memory policy lookup tree with the following structure:
+    Protocol -> Source IP range -> Destination IP range -> Destination port -> [Rules]
+    :param all_rules:
+    :return:
+    """
+    # Using nested lambda definitions to create auto-generating branch dictionary layers
+    tree = lambda: defaultdict(tree)
+    policy_tree = defaultdict(tree)
+
+    for rule in all_rules:
+        # Create unique identifier keys for the matrix nodes
+        src_key = (rule.src_ip_start, rule.src_ip_end)
+        dst_key = (rule.dst_ip_start, rule.dst_ip_end)
+        port_key = (rule.dst_port_start, rule.dst_port_end)
+
+        # Traverse the tree and append the rule object to leaf node array
+        if "rules" not in policy_tree[rule.protocol][src_key][dst_key][port_key]:
+            policy_tree[rule.protocol][src_key][dst_key][port_key]["rules"] = []
+        policy_tree[rule.protocol][src_key][dst_key][port_key]["rules"].append(rule)
+
+    return policy_tree
 
 
 def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[FirewallRule]) -> list[ObjectAnomaly]:
@@ -132,7 +154,7 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
 
     # 1. Gather filtered HOST components using existing logic
     objects_registry = parse_objects(xml_data)   # get all objects from XML config doc and put in this
-    policy_tree = build_policy_tree(all_rules)  # build_policy_tree to be added afterwards
+    policy_tree = build_policy_tree(all_rules)
 
     # Internal helper to find any rules in policy tree that use a given object, by running structural tree queries
     def find_affected_rules_in_tree(object_name: str) -> list[FirewallRule]:

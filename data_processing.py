@@ -12,8 +12,6 @@ import csv    # for handling traffic logs
 from dataclasses import dataclass   # for firewall rule dataclass
 import xml.etree.ElementTree as ET   # for parsing XML
 # For the following imports, must have pan-os-python SDK installed using pip
-from panos.panorama import Panorama
-from panos.errors import PanDeviceError
 
 dns_cache = {}    # store information about queried IPs and their observed identities
 
