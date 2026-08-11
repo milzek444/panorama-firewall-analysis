@@ -403,7 +403,7 @@ class ReportingRemediationEngine:
                 # For safety we tag rules requiring review instead of dropping policies automatically
                 xml_policy_tag = (
                     # f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
-                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='{con.perimeter_rule.name}']\">"
+                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='{con.perimeter_rule.rule_name}']\">"
                     f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
                     f"</set>"
                 )

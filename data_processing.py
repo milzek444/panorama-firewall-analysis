@@ -17,6 +17,7 @@ dns_cache = {}    # store information about queried IPs and their observed ident
 
 @dataclass()
 class FirewallRule:
+    rule_name: str   # Present in the XML running config file
     src_ip_start: int
     src_ip_end: int
     dst_ip_start: int
@@ -217,6 +218,7 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     d_port_start, d_port_end = port_to_range_ints(dst_port)
 
                     rule_obj = FirewallRule(
+                        rule_name=raw["name"],
                         ip_version=src_version,
                         protocol=protoc,
                         src_ip_start=src_start,
@@ -230,6 +232,8 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                         action=raw["action"],
                         src_expected_identity=src_xml_object,
                         dst_expected_identity=dst_xml_object
+                        # ignore observed src/dst identities; normaliser doesnt have access to
+                        # traffic logs or DNS cache needed to discover this observed identity
                     )
                     normalised_rules.append(rule_obj)
     return normalised_rules
