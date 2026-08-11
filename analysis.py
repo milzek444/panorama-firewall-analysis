@@ -43,8 +43,11 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
     # Group the rules in dicts efficiently based on (ip_version, protocol) to minimise redundant iterations
     # for defaultdict, if you try to access a key that doesn't exist yet, it will be created & assigned empty list
     # No need to check if the key exists first
-    perimeter_allow = defaultdict(list)
-    internal_deny = defaultdict(list)
+    # perimeter_allow = defaultdict(list)
+    # internal_deny = defaultdict(list)
+    perimeter_allow_test: defaultdict[tuple[int, str], list[FirewallRule]] = defaultdict(list)
+        # defaultdict data type is [key_type, value_type]. key_type is based on key variable below, subject to change
+    internal_deny_test: defaultdict[tuple[int, str], list[FirewallRule]] = defaultdict(list)
 
     for rule in all_rules:   # go through all collected firewall rules
         # This line of code defaults to assuming everything is a perimeter rule unless a field says otherwise
@@ -54,13 +57,13 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
         # populate the two dictionaries (perimeter_allow & internal_deny) with the rules in all_rules
         # ensures that IPv4 perimeter rules are only ever compared to IPv4 internal rules, and same with IPv6
         if is_perimeter and rule.action.lower() == "allow":
-            perimeter_allow[key].append(rule)
+            perimeter_allow_test[key].append(rule)
         elif not is_perimeter and rule.action.lower() in ["deny", "drop"]:
-            internal_deny[key].append(rule)
+            internal_deny_test[key].append(rule)
 
     # Perform rule overlap checks
-    for key, p_rules in perimeter_allow.items():  # iterate through all perimeter FW rules with "allow" action
-        i_rules = internal_deny.get(key, [])  # get a group of perimeter allow rules (e.g., IPv4, TCP),
+    for key, p_rules in perimeter_allow_test.items():  # iterate through all perimeter FW rules with "allow" action
+        i_rules = internal_deny_test.get(key, [])  # get a group of perimeter allow rules (e.g., IPv4, TCP),
                                                      # and finds corresponding group of internal deny rules (i_rules)
         if not i_rules:  # if no internal deny rules match for that specific perimeter_allow rule thing, skip
             continue
@@ -68,7 +71,8 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
         for p_rule in p_rules:
             for i_rule in i_rules:
                 # Check destination IP range overlap
-                dst_overlap = (max(p_rule.dst_ip_start, i_rule.dst_start) <= min(p_rule.dst_end, i_rule.dst_end))
+                dst_overlap = (max(p_rule.dst_ip_start, i_rule.dst_ip_start) <=
+                               min(p_rule.dst_ip_end, i_rule.dst_ip_end))
                 if not dst_overlap:
                     continue  # skips the rest of the code
 
@@ -87,8 +91,8 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
                 p_port_span = p_rule.dst_port_end - p_rule.dst_port_start
                 i_port_span = i_rule.dst_port_end - i_rule.dst_port_start
 
-                p_ip_span = p_rule.dst_end - p_rule.dst_start
-                i_ip_span = i_rule.dst_end - i_rule.dst_start
+                p_ip_span = p_rule.dst_ip_end - p_rule.dst_ip_start
+                i_ip_span = i_rule.dst_ip_end - i_rule.dst_ip_start
 
 
                 # "p" is perimeter FW, "i" is internal FWs( i.e., all but perimeter)
@@ -171,6 +175,8 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
         return matched
 
     for obj_name, metadata in objects_registry.items():
+        # objects_registry is a dictionary mapping an object's name to its details, "metadata" holds dictionary of
+        # attributes for that object (e.g., raw IP value, object type, tags)
         ip_addr = metadata["ip"] # metadata holds dictionary of attributes for that object, e.g., raw IP value, obj type
         if ip_addr == "Group Reference":
             continue  # Bypass address group structural headers, target individual hosts only
@@ -329,7 +335,7 @@ class ReportingRemediationEngine:
         if not self. contradictions:
             report_output.append("No inter-firewall policy contradictions identified between the perimeter "
                                  "and downstream firewalls.\n")
-        for idx, con in enumerate(self.contradictions, 1):  # go through each inter-firewall contradiction found
+        for idx, con in  enumerate(self.contradictions, 1):  # go through each inter-firewall contradiction found
             report_output.append(f"  [{idx}] Category: {con.category}")  # idx prints out index number [1], [2], etc.
             report_output.append(f"      Description: {con.description}")
             report_output.append(f"      Security Impact: {con.security_impact}")
@@ -392,11 +398,12 @@ class ReportingRemediationEngine:
 
         # 3: Remediation for policy/rule contradictions
         for con in self.contradictions:
-            if con.category == "Broad Port Exposure":
+            if con.category == "Broad Port Exp@osure":
                 # Injecting safety comments or administrative logging rules for optimisation pipelines
                 # For safety we tag rules requiring review instead of dropping policies automatically
                 xml_policy_tag = (
-                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
+                    # f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
+                    f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='{con.perimeter_rule.name}']\">"
                     f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
                     f"</set>"
                 )

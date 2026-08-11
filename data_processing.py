@@ -112,6 +112,8 @@ def parse_xml(xml_data: str) -> list[dict]:
 
     CIDR subnets, variable IP & port ranges: python libraries like ipaddress can convert CIDR subnets into ranged
     numerical integers, also consisting of a start and end value.
+
+    !!! maybe this should return list[some other data type]???
     """
     print("Calling parse_xml...")
     root = ET.fromstring(xml_data)   #turn raw XML string into a live, searchable tree in memory
@@ -143,6 +145,8 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
     selected/inputted as argument or something similar by asking for user input or allowing for
     other developers/versions to modify it in a clear variable
     !!!!! same for root.findall address things here and in line 11x above
+
+    !!!!! maybe this should return list[some other data type]???
     """
     root = ET.fromstring(xml_data)
     objects_registry = {}
