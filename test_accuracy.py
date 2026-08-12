@@ -16,7 +16,6 @@ def test_analysis_pipeline_accuracy():
     Precision) How many of the flaws are true (and not false flags)?
     Recall) Out of all the flaws that exist in the system, how many did the system find?
     F1) Combined average of the two above
-    (failed)
     :return:
     """
     # Create a synthetic data set with a specified number of flaws

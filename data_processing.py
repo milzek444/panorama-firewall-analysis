@@ -17,7 +17,7 @@ dns_cache = {}    # store information about queried IPs and their observed ident
 
 @dataclass()
 class FirewallRule:
-    rule_name: str   # Present in the XML running config file
+    rule_name: str | None   # Present in the XML running config file
     src_ip_start: int
     src_ip_end: int
     dst_ip_start: int
