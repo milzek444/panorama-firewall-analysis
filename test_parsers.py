@@ -52,6 +52,7 @@ def test_ip_to_range_ints_any_handling():
 def test_parse_objects_filtering(xml_dataset):
     """
     Ensures parser only extracts objects matching the correct tag
+    (failed)
     :param xml_dataset:
     :return:
     """
@@ -126,6 +127,7 @@ def test_parse_xml_policies_structure(rule_xml_dataset):
 def test_reverse_dns_lookup_success():
     """
     Verifies that active IP addresses populate the runtime cache upon lookup resolution
+    (failed)
     :return:
     """
     # Use "mock" to simulate a successful DNS resolve
@@ -178,6 +180,7 @@ def test_normalise_firewall_rules_mapping():
     """
     Confirms rule text variables are correctly transformed into standardised FirewallRule instances
     :return:
+    (failed)
     """
     mock_raw_rules = [{
         "name": "Test-Rule",

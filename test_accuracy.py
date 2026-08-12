@@ -13,6 +13,7 @@ def test_analysis_pipeline_accuracy():
     """
     Computes a full confusion matrix (Precision, Recall, F1)
     against known ground-truth configuration rules.
+    (failed)
     :return:
     """
     # Create a synthetic data set with a specified number of flaws

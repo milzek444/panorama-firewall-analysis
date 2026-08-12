@@ -123,6 +123,12 @@ def parse_xml(xml_data: str) -> list[dict]:
     for rule in root.findall(".//security/rules/entry"):   # .// is XPath syntax; search anywhere at any depth
         # extract rule attributes and put into dictionary "rule_data"
         # this dictionary is then used as an arg for function to normalise
+        if rule.findtext("disabled") == "yes":
+            continue  # Skip disabled rules; they are inactive
+
+        negate_src = rule.findtext("negate-source") == "yes"
+        negate_dst = rule.findtext("negate-destination") == "yes"
+
         rule_data = {
             "name": rule.get("name"),
             "protocol": "tcp",
@@ -130,8 +136,10 @@ def parse_xml(xml_data: str) -> list[dict]:
             "destinations": [m.text for m in rule.findall(".//destination/member")],
             "src_ports": ["any"],
             "dst_ports": [m.text for m in rule.findall(".//service/member")],
-            "action": rule.findtext("action", "allow")  # look for <action> tags, if missing from XML,
+            "action": rule.findtext("action", "allow"),  # look for <action> tags, if missing from XML,
                                                                     # then default to "allow"
+            "negate_source": negate_src,
+            "negate_dest": negate_dst
         }
         raw_rules.append(rule_data)
 
@@ -187,6 +195,26 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
                     objects_registry[mem_name] = {"ip": "Group Reference", "type": "address-group"}
 
     return objects_registry
+
+
+def get_negated_ranges(start: int, end: int, max_int: int) -> list[tuple[int, int]]:
+    """
+    Helper that returns the inverse space of a given range, when <negate-source> or
+    <negate-destination> are true for a given rule
+
+    e.g., if it negates 10.0.0.0/24 (integer range A to B), generate two windows of allowed values:
+    (0, A-1) and (B+1, max_int)
+    :param start:
+    :param end:
+    :param max_int:
+    :return:
+    """
+    ranges = []
+    if start > 0:
+        ranges.append((0, start - 1))
+    if end < max_int:
+        ranges.append((end + 1, max_int))
+    return ranges
 
 
 def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> list[FirewallRule]:
