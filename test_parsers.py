@@ -8,7 +8,13 @@ single strings vs CIDR ranges, & tagged objects.
 """
 # from generate_test_data import (IronSkillet retrieval function)
 # Assuming your source modules are inside data_processing.py
-from data_processing import ip_to_range_ints, parse_objects
+from unittest import mock
+
+import pytest
+
+from data_processing import (ip_to_range_ints, parse_objects, port_to_range_ints, reverse_dns,
+                             search_traffic, normalise_firewall_rules, parse_xml)
+
 
 def test_ip_to_range_ints_ipv4():
     """
@@ -35,8 +41,8 @@ def test_ip_to_range_ints_ipv6():
 
 def test_ip_to_range_ints_any_handling():
     """
-    Test correctness of helper by verifying that 'any' IP maps accurately based on protocol version profiles (v4/6)
-    without mixing up between v4 and v6.
+    Test helper by verifying that 'any' IP maps accurately based on protocol version profiles (v4/6)
+    without mixing up between v4 and v6
     :return:
     """
     start_v4, end_v4, v4 = ip_to_range_ints("any")
@@ -54,3 +60,144 @@ def test_parse_objects_filtering(xml_dataset):
     for name, meta in registry.items():
         assert "ip" in meta
         assert meta["type"] in ["ip-netmask", "ip-range", "ip-wildcard", "fqdn", "address-group"]
+
+
+def test_port_to_range_ints_single():
+    """
+    Proves that a single port maps to an identical start-end pair
+    :return:
+    """
+    start, end = port_to_range_ints("80", "tcp")
+    assert start == 80
+    assert end == 80
+
+
+def test_port_to_range_ints_range():
+    """
+    Validates that a hyphenated port range splits correctly into upper/lower boundaries
+    :return:
+    """
+    start, end = port_to_range_ints("1024-2048", "tcp")
+    assert start == 1024
+    assert end == 2048
+
+
+def test_port_to_range_ints_any():
+    """
+    Validates that an 'any' port for a rule sets a full 16 bit range spectrum
+    :return: 
+    """
+    start, end = port_to_range_ints("any", "tcp")
+    assert start == 0
+    assert end == 65535
+
+
+# Re-using parameterised xml_dataset style for policy rules
+@pytest.fixture(params=["synthetic_rules"])
+def rule_xml_dataset(request):
+    return """<config><shared><rulebase><security><rules>
+        <entry name="RULE-WEB-ALLOW">
+            <source><member>any</member></source>
+            <destination><member>10.0.0.1</member></destination>
+            <service><member>service-tcp-80</member></service>
+            <action>allow</action>
+        </entry>
+    </rules></security></rulebase></shared></config>"""
+
+
+def test_parse_xml_policies_structure(rule_xml_dataset):
+    """
+    Ensures raw policy properties are accurately read into flat list dictionary structures
+    :param rule_xml_dataset:
+    :return:
+    """
+    raw_rules = parse_xml(rule_xml_dataset)
+    assert isinstance(raw_rules, list)
+    assert len(raw_rules) > 0
+
+    first_rule = raw_rules[0]
+    assert "name" in first_rule
+    assert "sources" in first_rule
+    assert "destinations" in first_rule
+    assert "dst_ports" in first_rule
+    assert "action" in first_rule
+
+
+def test_reverse_dns_lookup_success():
+    """
+    Verifies that active IP addresses populate the runtime cache upon lookup resolution
+    :return:
+    """
+    # Use "mock" to simulate a successful DNS resolve
+    with mock.patch('socket.gethostbyaddr', return_value=("dc01.campus.edu", [], ["10.0.0.10"])):
+        # Clear the global DNS cache element to allow for isolated evaluation
+        global dns_cache
+        dns_cache.pop("10.0.0.10", None)
+
+        hostname = reverse_dns("10.0.0.10")
+        assert hostname == "dc01.campus.edu"
+
+
+def test_reverse_dns_lookup_failure_cached():
+    """
+    Ensures failed DNS tracking lookups return None and use the cache without hanging loops
+    :return:
+    """
+    import socket
+    with mock.patch('socket.gethostbyaddr', side_effect=socket.herror):
+        hostname = reverse_dns("192.0.2.1")
+        assert hostname is None
+
+
+def test_search_traffic_logs_match():
+    """
+    Validates structural matching of log text matrices using string rows
+    :return:
+    """
+    mock_csv_data = "Source address,Destination address,Source User,Destination User\n10.0.0.5,192.168.1.20,ITSERV-ADMIN,None"
+
+    # Target match check
+    found, obj_name = search_traffic(mock_csv_data, "10.0.0.5")
+    assert found is True
+    assert obj_name == "ITSERV-ADMIN"
+
+
+def test_search_traffic_logs_miss():
+    """
+    Validates negative mismatch states return False and empty descriptors
+    :return:
+    """
+    mock_csv_data = "Source address,Destination address,Source User,Destination User\n10.0.0.5,192.168.1.20,ITSERV-ADMIN,None"
+
+    found, obj_name = search_traffic(mock_csv_data, "172.16.0.1")
+    assert found is False
+    assert obj_name is None
+
+
+def test_normalise_firewall_rules_mapping():
+    """
+    Confirms rule text variables are correctly transformed into standardised FirewallRule instances
+    :return:
+    """
+    mock_raw_rules = [{
+        "name": "Test-Rule",
+        "protocol": "tcp",
+        "sources": ["any"],
+        "destinations": ["SERVER-OBJ"],
+        "src_ports": ["any"],
+        "dst_ports": ["80"],
+        "action": "allow"
+    }]
+
+    mock_objects_registry = {
+        "SERVER-OBJ": {"ip": "192.168.1.50", "type": "ip-netmask"}
+    }
+
+    normalised = normalise_firewall_rules(mock_raw_rules, mock_objects_registry)
+    assert len(normalised) == 1
+
+    rule_obj = normalised[0]
+    assert rule_obj.ip_version == 4
+    assert rule_obj.action == "allow"
+    assert rule_obj.dst_expected_identity == "SERVER-OBJ"
+    assert rule_obj.dst_ip_start == 3232235826  # Integer version of 192.168.1.50

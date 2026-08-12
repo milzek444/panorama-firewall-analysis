@@ -75,7 +75,7 @@ def ip_to_range_ints(ip_str: str) -> tuple[int, int, int]:
         return 0, 0, version
 
 
-def port_to_range_ints(port_str: str) -> tuple[int, int]:
+def port_to_range_ints(port_str: str, protocol: str) -> tuple[int, int]:
     """
     Converts a port string or range into a pair of integers representing the start and end of the range
     Single port values have identical start and end values
@@ -214,8 +214,8 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     if "udp" in dst_port.lower():
                         protoc = "udp"
 
-                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"])
-                    d_port_start, d_port_end = port_to_range_ints(dst_port)
+                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
+                    d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
 
                     rule_obj = FirewallRule(
                         rule_name=raw["name"],
