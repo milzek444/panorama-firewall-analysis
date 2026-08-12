@@ -12,8 +12,10 @@ from unittest import mock
 
 import pytest
 
+import data_processing
 from data_processing import (ip_to_range_ints, parse_objects, port_to_range_ints, reverse_dns,
                              search_traffic, normalise_firewall_rules, parse_xml)
+from generate_test_data import generate_synthetic_xml_and_csv
 
 
 def test_ip_to_range_ints_ipv4():
@@ -49,14 +51,13 @@ def test_ip_to_range_ints_any_handling():
     assert v4 == 4
     assert end_v4 == 2**32 - 1
 
-def test_parse_objects_filtering(xml_dataset):
+def test_parse_objects_filtering():
     """
     Ensures parser only extracts objects matching the correct tag
-    (failed)
-    :param xml_dataset:
     :return:
     """
-    registry = parse_objects(xml_dataset)
+    xml_data, csv_data, truth = generate_synthetic_xml_and_csv(num_rules=50, num_objects=50, flaw_ratio=0.2)
+    registry = parse_objects(xml_data)
     assert isinstance(registry, dict)
     for name, meta in registry.items():
         assert "ip" in meta
@@ -127,14 +128,12 @@ def test_parse_xml_policies_structure(rule_xml_dataset):
 def test_reverse_dns_lookup_success():
     """
     Verifies that active IP addresses populate the runtime cache upon lookup resolution
-    (failed)
     :return:
     """
     # Use "mock" to simulate a successful DNS resolve
     with mock.patch('socket.gethostbyaddr', return_value=("dc01.campus.edu", [], ["10.0.0.10"])):
         # Clear the global DNS cache element to allow for isolated evaluation
-        global dns_cache
-        dns_cache.pop("10.0.0.10", None)
+        data_processing.dns_cache.pop("10.0.0.10", None)
 
         hostname = reverse_dns("10.0.0.10")
         assert hostname == "dc01.campus.edu"
@@ -180,7 +179,6 @@ def test_normalise_firewall_rules_mapping():
     """
     Confirms rule text variables are correctly transformed into standardised FirewallRule instances
     :return:
-    (failed)
     """
     mock_raw_rules = [{
         "name": "Test-Rule",

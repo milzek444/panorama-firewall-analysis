@@ -48,7 +48,6 @@ def test_reporting_engine_output_logic(mock_anomalies):
     Verifies that generated reports correctly display the risk descriptions and XML configuration payloads
     :param mock_anomalies:
     :return:
-    (failed)
     """
     contradictions, anomalies = mock_anomalies
     engine = ReportingRemediationEngine(contradictions, anomalies)
