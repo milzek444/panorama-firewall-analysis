@@ -13,6 +13,9 @@ def test_analysis_pipeline_accuracy():
     """
     Computes a full confusion matrix (Precision, Recall, F1)
     against known ground-truth configuration rules.
+    Precision) How many of the flaws are true (and not false flags)?
+    Recall) Out of all the flaws that exist in the system, how many did the system find?
+    F1) Combined average of the two above
     (failed)
     :return:
     """
@@ -23,6 +26,10 @@ def test_analysis_pipeline_accuracy():
     raw_rules = parse_xml(xml_data)
     obj_reg = parse_objects(xml_data)
 
+    print(raw_rules)
+    print("AAAAAAAAAAAA")
+    print(obj_reg)
+
     # Distribute virtual firewall boundaries across rule attributes for proper multi-firewall routing simulation
     # !!!!! "Sentry" & "Internal-Downstream" to be modified depending on the test data set used
     for idx, rule in enumerate(raw_rules):
@@ -30,13 +37,15 @@ def test_analysis_pipeline_accuracy():
 
     final_rules = normalise_firewall_rules(raw_rules, obj_reg)
     for idx, r in enumerate(final_rules):
-        r.firewall_name = "Sentry" if "_P" in raw_rules[idx // len(raw_rules)]["name"] else "Internal-Downstream"
+        # Safely cycle through raw_rules indices using modulo (%)
+        corresponding_raw = raw_rules[idx % len(raw_rules)]
+        r.firewall_name = "Sentry" if "_P" in corresponding_raw["name"] else "Internal-Downstream"
 
     # Execute contradiction checks
     contradictions = analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry")
 
-    # Derive statistical confusion variables
-    tp = len([c for c in contradictions if c.perimeter_rule.firewall_name in truth["expected_contradictions"]])
+    # Derive statistical confusion variables (true +/-, false +/-)
+    tp = len([c for c in contradictions if c.perimeter_rule.rule_name in truth["expected_contradictions"]])
     fp = len(contradictions) - tp
     fn = truth["contradictions"] - tp
     tn = len(final_rules) - (tp + fp + fn)

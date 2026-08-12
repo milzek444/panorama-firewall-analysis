@@ -246,6 +246,9 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
 
                     rule_obj = FirewallRule(
+                        firewall_name=None,
+                        src_observed_identity=None,
+                        dst_observed_identity=None,
                         rule_name=raw["name"],
                         ip_version=src_version,
                         protocol=protoc,
