@@ -38,10 +38,12 @@ def run_performance_benchmarks():
         final_rules = normalise_firewall_rules(raw_rules, obj_reg)
         for idx, r in enumerate(final_rules):
             r.firewall_name = "Sentry" if idx % 2 == 0 else "Internal-Downstream"  # !!!!! subject to change
+                                                                                   # (not here though; this is for testing)
 
         # Benchmark 1: Policy contradiction checks
         start_time = time.perf_counter()
         analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry") # !!!!! perimeter name subject to change
+                                                                              # (not here though; this is for testing)
         end_time = time.perf_counter()
 
         policy_duration_ms = (end_time - start_time) * 1000.0

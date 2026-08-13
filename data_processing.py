@@ -150,49 +150,48 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
     Extracts and processes Address objects & Address Group objects from the running configuration
     :param xml_data:
     :return:
-    !!!!! use of "HOST" and "HOST-COMPONENT" should not be hardcoded; should be modified to be
-    selected/inputted as argument or something similar by asking for user input or allowing for
-    other developers/versions to modify it in a clear variable
-    !!!!! same for root.findall address things here and in line 11x above
-
-    !!!!! maybe this should return list[some other data type]???
     """
     root = ET.fromstring(xml_data)
     objects_registry = {}
-    group_tags = {}
-
-    def get_tags(elem):
-        return [t.text for t in elem.findall(".//tag/member")]
+    # group_tags = {}
+    #
+    # def get_tags(elem):
+    #     return [t.text for t in elem.findall(".//tag/member")]
 
     for addr in root.findall(".//address/entry"):  # go through all addr. object entries, get their names and tags
         name = addr.get("name")
-        tags = get_tags(addr)
+        # tags = get_tags(addr)
+        if not name:
+            continue
 
-        if "HOST" in tags:   # ITS regulations say that "HOST" tagged devices can be
-                             # searched for reassignment/decommissioned
-            obj_type = None
-            ip_val = None
-            for child in addr:
-                if child.tag in ["ip-netmask", "ip-range", "ip-wildcard", "fqdn"]:  # as per ITServices regs
-                    obj_type = child.tag
-                    ip_val = child.text
-                    break
-            if name and ip_val:
-                objects_registry[name] = {"ip": ip_val, "type": obj_type}
+        # if "HOST" in tags:   # ITS regulations say that "HOST" tagged devices can be
+        #                      # searched for reassignment/decommissioned
+        obj_type = None
+        ip_val = None
+        for child in addr:
+            if child.tag in ["ip-netmask", "ip-range", "ip-wildcard", "fqdn"]:  # as per ITServices regs
+                obj_type = child.tag
+                ip_val = child.text
+                break
 
-    for group in root.findall(".//address-group/entry"):  # repeat for address groups & AG objects
-        name = group.get("name")
-        group_tags[name] = get_tags(group)
+        if ip_val: #name and ip_val:
+            objects_registry[name] = {"ip": ip_val, "type": obj_type}
+
+    # for group in root.findall(".//address-group/entry"):  # repeat for address groups & AG objects
+    #     name = group.get("name")
+    #     group_tags[name] = get_tags(group)
 
     for group in root.findall(".//address-group/entry"):
         group_name = group.get("name")
-        g_tags = group_tags.get(group_name, [])
+        # g_tags = group_tags.get(group_name, [])
+        if not group_name:
+            continue
 
-        if "HOST" in g_tags:
-            for member in group.findall(".//static/member"):
-                mem_name = member.text
-                if mem_name in group_tags and "HOST-COMPONENT" in group_tags[mem_name]:
-                    objects_registry[mem_name] = {"ip": "Group Reference", "type": "address-group"}
+
+        for member in group.findall(".//static/member"):
+            mem_name = member.text
+            if mem_name and mem_name not in objects_registry:
+                objects_registry[mem_name] = {"ip": "Group Reference", "type": "address-group"}
 
     return objects_registry
 

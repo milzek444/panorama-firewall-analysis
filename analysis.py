@@ -19,7 +19,7 @@ class PolicyContradiction:
 @dataclass
 class ObjectAnomaly:
     category: str  # One of two; "Decommissioned Object", "IP Reuse Mismatch"
-    object_name: str  # Holds the exact Panorama configuration object name (e.g., HR-Database-Server)
+    object_name: str  # Holds the exact Panorama configuration object name (e.g., HR-Database-Server) <display-name>
     ip_address: str
     expected_hostname: str  # the name present in XML for that object
     observed_hostname: str | None  # the name present in CSV traffic logs / DNS resolve
