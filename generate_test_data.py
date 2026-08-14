@@ -72,16 +72,30 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
         if introduce_flaw:
             # Inject a verifiable flawed inter-firewall rule contradiction
             # Where Perimeter rules have broad ALLOW, but internal FW policy explicitly blocks subset
-            xml_rules_perimeter.append(
-                f'<entry name="{rule_name}_P"><source><member>any</member></source>'
-                f'<destination><member>10.0.0.0/16</member></destination>'
-                f'<service><member>any</member></service><action>allow</action></entry>'
-            )
-            xml_rules_internal.append(
-                f'<entry name="{rule_name}_I"><source><member>any</member></source>'
-                f'<destination><member>10.0.5.0/24</member></destination>'
-                f'<service><member>service-tcp-80</member></service><action>deny</action></entry>'
-            )
+            flaw_type = random.random() < flaw_ratio
+            if flaw_type:  # add the application-default, yk-dns-udp-src53, service-http etc. stuff, 14/08
+                xml_rules_perimeter.append(
+                    f'<entry name="{rule_name}_P"><source><member>any</member></source>'
+                    f'<destination><member>10.0.0.0/16</member></destination>'
+                    f'<service><member>any</member></service><action>allow</action></entry>'
+                )
+                xml_rules_internal.append(
+                    f'<entry name="{rule_name}_I"><source><member>any</member></source>'
+                    f'<destination><member>10.0.5.0/24</member></destination>'
+                    f'<service><member>application-default</member></service><action>deny</action></entry>'
+                )  # internal rule (10.0.5.0/24) blocks perimeter rule (10.0.0.0/16)
+            else:
+                xml_rules_perimeter.append(
+                    f'<entry name="{rule_name}_P"><source><member>any</member></source>'
+                    f'<destination><member>10.0.0.0/16</member></destination>'
+                    f'<service><member>any</member></service><action>allow</action></entry>'
+                )
+                xml_rules_internal.append(
+                    f'<entry name="{rule_name}_I"><source><member>any</member></source>'
+                    f'<destination><member>10.0.5.0/24</member></destination>'
+                    f'<service><member>service-tcp-80</member></service><action>deny</action></entry>'
+                )  # internal rule (10.0.5.0/24) blocks perimeter rule (10.0.0.0/16)
+
             ground_truth["contradictions"] += 1
             ground_truth["expected_contradictions"].append(f"{rule_name}_P")
         else:
