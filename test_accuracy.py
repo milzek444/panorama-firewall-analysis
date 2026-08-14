@@ -6,7 +6,7 @@ aiming to minimise false-positive alerts on clean rules
 """
 #import pytest
 from generate_test_data import generate_synthetic_xml_and_csv
-from data_processing import parse_xml, parse_objects, normalise_firewall_rules
+from data_processing import parse_xml, parse_objects, normalise_firewall_rules, parse_service_objects
 from analysis import analyse_inter_firewall_policies
 
 def test_analysis_pipeline_accuracy():
@@ -24,17 +24,21 @@ def test_analysis_pipeline_accuracy():
     # Run the core functions; parsing the XML and objects
     raw_rules = parse_xml(xml_data)
     obj_reg = parse_objects(xml_data)
+    service_reg = parse_service_objects(xml_data)
 
     print(raw_rules)
-    print("AAAAAAAAAAAA")
+    print("<===================>")
     print(obj_reg)
+    print("<===================>")
+    print(service_reg)
 
     # Distribute virtual firewall boundaries across rule attributes for proper multi-firewall routing simulation
     # !!!!! "Sentry" & "Internal-Downstream" to be modified depending on the test data set used
     for idx, rule in enumerate(raw_rules):
         rule["firewall_name"] = "Sentry" if "_P" in rule["name"] else "Internal-Downstream"
 
-    final_rules = normalise_firewall_rules(raw_rules, obj_reg)
+    final_rules = normalise_firewall_rules(raw_rules, service_reg, obj_reg)
+
     for idx, r in enumerate(final_rules):
         # Safely cycle through raw_rules indices using modulo (%)
         corresponding_raw = raw_rules[idx % len(raw_rules)]
@@ -55,8 +59,8 @@ def test_analysis_pipeline_accuracy():
     recall = tp / (tp + fn) if (tp + fn) > 0 else 1.0
     f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 1.0
 
-    print(f"\n--- Algorithmic Accuracy Matrix Summary ---")
-    print(f"Accuracy: {float(accuracy):.4f} | Precision: {precision:.4f} | Recall: {float(recall):.4f} | F1-Score: {f1_score:.4f}")
+    print(f"\n--- Algorithmic Confusion Matrix Summary ---")
+    print(f"ACCURACY: {float(accuracy):.4f} | PRECISION: {precision:.4f} | RECALL: {float(recall):.4f} | F1-SCORE: {f1_score:.4f}")
 
     # Core system health assertions
     assert precision >= 0.90, "PRECISION >= 90%: System is generating an excessive number of false-positive warnings"

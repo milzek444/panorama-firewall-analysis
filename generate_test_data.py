@@ -25,12 +25,13 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
         "expected_anomalies": []
     }
 
-    # Generate Address Objects with discrete ITS tag profiles to flag flaws
+    # 1: Generate Address Objects
     xml_objs = []
     csv_rows = ["Source address,Destination address,Source User,Destination User"]
 
     for i in range(num_objects):
-        obj_name = f"HOST-SRV-{i:05d}"
+        # obj_name = f"HOST-SRV-{i:05d}"
+        obj_name = f"NET-OBJ-{i:05d}"
         # Split IPv4 and IPv6 IPs safely; alternate between generating IPv4 and IPv4
         if i % 2 == 0:
             ip = f"10.0.{(i >> 8) & 0xFF}.{i & 0xFF}"
@@ -44,7 +45,8 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
             if anomaly_type == "decommissioned":
                 # Decom./stale item: Left in configuration but completely absent from traffic
                 xml_objs.append(
-                    f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask><tag><member>HOST</member></tag></entry>')
+                    # f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask><tag><member>HOST</member></tag></entry>')
+                    f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask></entry>')
                 ground_truth["decommissioned"] += 1
                 ground_truth["expected_anomalies"].append((obj_name, "Decommissioned Object"))
             else:
@@ -58,10 +60,18 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
         else:
             # A normal object
             xml_objs.append(
-                f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask><tag><member>HOST</member></tag></entry>')
+                # f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask><tag><member>HOST</member></tag></entry>')
+                f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask></entry>')
             csv_rows.append(f"{ip},192.168.1.1,UserA,UserB")
 
-    # 2. Build Firewall rule dimensions
+    # 2: Generate entries that use custom service object references
+    xml_services = [
+        '<entry name="test-dns-udp-src53"><protocol><udp><port>53</port></udp></protocol></entry>',
+        '<entry name="tcp-high-ports"><protocol><tcp><port>1024-65535</port></tcp></protocol></entry>',
+        '<entry name="custom-web-port"><protocol><tcp><port>8080</port></tcp></protocol></entry>'
+    ]
+
+    # 3. Build firewall rule dimensions (perimeter firewall, internal FWs)
     xml_rules_perimeter = []
     xml_rules_internal = []
 
@@ -69,9 +79,12 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
         rule_name = f"Rule-{r:05d}"
         introduce_flaw = random.random() < flaw_ratio
 
+        # Randomly choose between service objects (both custom & standard)
+        service_ref = random.choice(["tcp/80", "smtp", "application-default", "tcp-high-ports", "test-dns-udp-src53"])
+
         if introduce_flaw:
             # Inject a verifiable flawed inter-firewall rule contradiction
-            # Where Perimeter rules have broad ALLOW, but internal FW policy explicitly blocks subset
+            # Where perimeter rules have broad ALLOW, but internal FW policy explicitly blocks subset
             xml_rules_perimeter.append(
                 f'<entry name="{rule_name}_P"><source><member>any</member></source>'
                 f'<destination><member>10.0.0.0/16</member></destination>'
@@ -80,7 +93,8 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
             xml_rules_internal.append(
                 f'<entry name="{rule_name}_I"><source><member>any</member></source>'
                 f'<destination><member>10.0.5.0/24</member></destination>'
-                f'<service><member>service-tcp-80</member></service><action>deny</action></entry>'
+                # f'<service><member>service-tcp-80</member></service><action>deny</action></entry>'
+                f'<service><member>{service_ref}</member></service><action>deny</action></entry>'
             )  # internal rule (10.0.5.0/24) blocks perimeter rule (10.0.0.0/16)
 
             ground_truth["contradictions"] += 1
@@ -90,17 +104,27 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
             xml_rules_perimeter.append(
                 f'<entry name="{rule_name}_P"><source><member>any</member></source>'
                 f'<destination><member>10.1.0.0/24</member></destination>'
-                f'<service><member>service-tcp-443</member></service><action>allow</action></entry>'
+                # f'<service><member>service-tcp-443</member></service><action>allow</action></entry>'
+                f'<service><member>{service_ref}</member></service><action>allow</action></entry>'
+
             )
             xml_rules_internal.append(
                 f'<entry name="{rule_name}_I"><source><member>any</member></source>'
                 f'<destination><member>10.1.0.0/24</member></destination>'
-                f'<service><member>service-tcp-443</member></service><action>allow</action></entry>'
+                # f'<service><member>service-tcp-443</member></service><action>allow</action></entry>'
+                f'<service><member>{service_ref}</member></service><action>allow</action></entry>'
             )
 
-    # 3. Assemble Output Configuration Tree Document Block
+    # 4: Assemble Output Configuration Tree Document Block with <services> tag
+    # f"<config><shared><address>{''.join(xml_objs)}</address>"
+    # f"<address-group></address-group>"
+    # f"<rulebase><security><rules>{''.join(xml_rules_perimeter)}{''.join(xml_rules_internal)}</rules></security></rulebase>"
+    # f"</shared></config>"
+
     xml_str = (
-        f"<config><shared><address>{''.join(xml_objs)}</address>"
+        f"<config><shared>"
+        f"<address>{''.join(xml_objs)}</address>"
+        f"<service>{''.join(xml_services)}</service>"
         f"<address-group></address-group>"
         f"<rulebase><security><rules>{''.join(xml_rules_perimeter)}{''.join(xml_rules_internal)}</rules></security></rulebase>"
         f"</shared></config>"
