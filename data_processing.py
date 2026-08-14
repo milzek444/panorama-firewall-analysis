@@ -38,6 +38,60 @@ class FirewallRule:
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
+# translating common <service> tag values in <rules> that are not raw port values
+SERVICE_PORT_MAPPING = {
+    "application-default": (0, 65535), # Evaluated dynamically or kept broad for safety
+    "any": (0, 65535),
+    "smtp": (25, 25),
+    "http": (80, 80),
+    "https": (443, 443),
+    "dns": (53, 53),
+    "ssh": (22, 22),
+    "telnet": (23, 23),
+    "ftp": (21, 21),
+    "ntp": (123, 123),
+    "snmp": (161, 162),
+    "bgp": (179, 179),
+    "ldaps": (636, 636),
+    "ldap": (389, 389),
+    "rdp": (3389, 3389),
+    "smb": (445, 445),
+    "oracle": (1521, 1521),
+    "mysql": (3306, 3306),
+    "ms-sql-s": (1433, 1433)
+}
+
+
+def parse_service_objects(xml_data: str) -> dict[str, tuple[int, int]]:
+    """
+    Parses custom service objects defined in the XML using XPaths, complementary to SERVICE_PORT_MAPPING dictionary
+    Maps service object names to their true (start_port, end_port) integer ranges.
+    :param xml_data:
+    :return:
+    """
+    root = ET.fromstring(xml_data)
+    service_registry = {}
+
+    # Locating XPath
+    for service in root.findall(".//service/entry"):
+        name = service.get("name")
+        if not name:
+            continue
+
+        # Service entries explicitly detail the protocol layout block (tcp or udp)
+        for proto in ['tcp', 'udp']: # why only tcp & udp????
+            port_elem = service.find(f"./protocol/{proto}/port")
+            if port_elem is not None and port_elem.text:
+                raw_port_text = port_elem.text.strip()
+
+                # Extract integer boundaries directly from the configuration definition
+                start, end = port_to_range_ints(raw_port_text, proto)
+                service_registry[name] = (start, end)
+                break  # Stop searching protocols once mapped
+
+    return service_registry
+
+
 def ip_to_range_ints(ip_str: str) -> tuple[int, int, int]:
     """
     Converts IP Strings into a pair of integers representing the start and end of the range
@@ -82,9 +136,18 @@ def port_to_range_ints(port_str: str, protocol: str) -> tuple[int, int]:
     :param port_str: the port value or range
     :return: (start_port, end_port)
     """
-    port_str = port_str.strip()
-    if not port_str or port_str.lower() == "any":   # "any" port / not specified
+    port_str = port_str.strip().lower()
+
+    if not port_str or port_str == "any" or port_str == 'application-default':   # "any" port / not specified
         return 0, 65535
+
+    # Strip protocol prefixes cleanly e.g., 'tcp/80' becomes 80
+    if '/' in port_str:
+        prefix, port_str = port_str.split('/', 1)
+        port_str = port_str.strip()
+
+    if port_str in SERVICE_PORT_MAPPING:
+        return SERVICE_PORT_MAPPING[port_str]
 
     if "-" in port_str:   # ranged port
         try:
@@ -216,7 +279,7 @@ def get_negated_ranges(start: int, end: int, max_int: int) -> list[tuple[int, in
     return ranges
 
 
-def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> list[FirewallRule]:
+def normalise_firewall_rules(raw_rules: list[dict], service_registry: dict, objects_registry: dict) -> list[FirewallRule]:
     """
     Transforms raw parsed rule strings into complete FirewallRule dataclass instances
     :param: utilises
@@ -241,8 +304,14 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     if "udp" in dst_port.lower():
                         protoc = "udp"
 
-                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
-                    d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
+                    # s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
+                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"], protoc)
+                    # d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
+                    # check service registry
+                    if dst_port in service_registry:
+                        d_port_start, d_port_end = service_registry[dst_port]
+                    else:
+                        d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
 
                     rule_obj = FirewallRule(
                         firewall_name=None,
@@ -267,6 +336,7 @@ def normalise_firewall_rules(raw_rules: list[dict], objects_registry: dict) -> l
                     )
                     normalised_rules.append(rule_obj)
     return normalised_rules
+
 
 def search_traffic(csv_data: str, target_ip: str) -> tuple[bool, str | None]:
     """
