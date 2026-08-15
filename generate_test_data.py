@@ -53,7 +53,7 @@ def generate_synthetic_xml_and_csv(num_rules: int, num_objects: int, flaw_ratio:
                 # IP reuse: Present in traffic logs but DNS path fails verification
                 # different asset is using IP than the one originally assigned in Panorama config
                 xml_objs.append(
-                    f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask><tag><member>HOST</member></tag></entry>')
+                    f'<entry name="{obj_name}"><ip-netmask>{ip}</ip-netmask></entry>')
                 csv_rows.append(f"{ip},192.168.1.1,UserA,UserB")
                 ground_truth["mismatches"] += 1
                 ground_truth["expected_anomalies"].append((obj_name, "IP Reuse Mismatch"))
