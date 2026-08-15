@@ -10,7 +10,7 @@ import time
 import matplotlib.pyplot as plt
 from unittest import mock
 from generate_test_data import generate_synthetic_xml_and_csv
-from data_processing import parse_xml, normalise_firewall_rules
+from data_processing import parse_xml, normalise_firewall_rules, parse_service_objects
 from analysis import analyse_inter_firewall_policies, parse_objects, analyse_config_objects
 
 
@@ -32,13 +32,15 @@ def run_performance_benchmarks():
 
         raw_rules = parse_xml(xml_data)
         obj_reg = parse_objects(xml_data)
+        service_reg = parse_service_objects(xml_data)
 
         # Inject structural multi-firewall boundaries into the dataclass profile objects
         # final_rules = parse_objects(raw_rules, obj_reg)
-        final_rules = normalise_firewall_rules(raw_rules, obj_reg)
+        final_rules = normalise_firewall_rules(raw_rules, service_reg, obj_reg)
         for idx, r in enumerate(final_rules):
-            r.firewall_name = "Sentry" if idx % 2 == 0 else "Internal-Downstream"  # !!!!! subject to change
-                                                                                   # (not here though; this is for testing)
+            # Safely cycle through raw_rules indices using modulo (%)
+            corresponding_raw = raw_rules[idx % len(raw_rules)]
+            r.firewall_name = "Sentry" if "_P" in corresponding_raw["name"] else "Internal-Downstream"
 
         # Benchmark 1: Policy contradiction checks
         start_time = time.perf_counter()

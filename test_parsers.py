@@ -177,6 +177,7 @@ def test_normalise_firewall_rules_mapping():
     """
     Confirms rule text variables are correctly transformed into standardised FirewallRule instances
     :return:
+    (failed)
     """
     mock_raw_rules = [{
         "name": "Test-Rule",
@@ -187,6 +188,9 @@ def test_normalise_firewall_rules_mapping():
         "dst_ports": ["80"],
         "action": "allow"
     }]
+
+    # add mock_service_registry
+
 
     mock_objects_registry = {
         "SERVER-OBJ": {"ip": "192.168.1.50", "type": "ip-netmask"}
