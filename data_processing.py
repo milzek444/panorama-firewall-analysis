@@ -38,6 +38,7 @@ class FirewallRule:
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
+
 # translating common <service> tag values in <rules> that are not raw port values
 SERVICE_PORT_MAPPING = {
     "application-default": (0, 65535), # Evaluated dynamically or kept broad for safety

@@ -2,7 +2,9 @@
 from panos.panorama import Panorama
 from panos.errors import PanDeviceError
 import xml.etree.ElementTree as ET
-from data_processing import parse_objects, parse_xml, normalise_firewall_rules
+
+from analysis import analyse_inter_firewall_policies, ReportingRemediationEngine, analyse_config_objects
+from data_processing import parse_objects, parse_xml, normalise_firewall_rules, parse_service_objects
 
 
 class PanoramaConnection:
@@ -63,44 +65,73 @@ class PanoramaConnection:
         self.pan_device = None
 
 
-def connect_to_panorama():
-    """
-    A separate method which will hold the code for connecting to Panorama, which may or may not be needed
-    """
+def main():
+    print("Calling entry method...")
+
+    # connect_to_panorama()
     panorama_ip = input("Enter Panorama Address: ").strip()
     api_k = input("Enter valid API key: ").strip()
 
     # days = 45   # traffic log should be 45 days
 
+    # Initialise connection manager
     connection = PanoramaConnection(hostname=panorama_ip, api_key=api_k)
 
     try:
         connection.connect()
         print("SUCCESS: Connection has been authenticated.")
 
+        # Retrieve XML config & CSV traffic logs from Panorama, then disconnect
         running_config_xml = connection.download_running_config()
         traffic_logs_csv = connection.download_traffic_logs()
         connection.disconnect()
 
         print("\nINITIALISING PROCESSING PHASE.....")
+
         print("\nExtracting structural objects context...")
         objects_registry = parse_objects(running_config_xml)
+
+        print("\nExtractive service objects....")
+        service_registry = parse_service_objects(running_config_xml)
 
         print("Gathering active rule blocks from policy engine...")
         raw_rules = parse_xml(running_config_xml)
 
         print("Generating normalised firewall rules...")
-        final_rules = normalise_firewall_rules(raw_rules, objects_registry)
+        final_rules = normalise_firewall_rules(raw_rules, objects_registry, service_registry)
 
-        print(f"\n===================================================")
-        print(f"PROCESS COMPLETE: processed {len(final_rules)} firewall rule dimensions successfully.")
-        print(f"===================================================")
+        # Distribute virtual firewall boundaries across rules for the multi-firewall simulation
+        # Since we use Sentry as the perimeter, we tag rules based on your network architecture
+        for idx, r in enumerate(final_rules):
+            # Safely cycle through raw_rules indices using modulo (%)
+            corresponding_raw = raw_rules[idx % len(raw_rules)]
+            # Rules with '_P' in the name are perimeter (Sentry), others are internal (to be handled later)
+            r.firewall_name = "Sentry" if "_P" in corresponding_raw["name"] else "Internal-Downstream"
+
+        # Now execute core analysis algorithms (rules + objects + reporting)
+        print("[PROCESSING] Algorithm 1: Inter-Firewall matrix validation...")
+        contradictions = analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry")
+
+        print("[PROCESSING] Algorithm 2: Correlating traffic logs and DNS cache...")
+        anomalies = analyse_config_objects(running_config_xml, traffic_logs_csv, final_rules)
+
+        print("[PROCESSING] Sorting final report and remediations....")
+        engine = ReportingRemediationEngine(contradictions, anomalies)
+
+        # Print the final report details to terminal plus payload
+        print("\n" + "=" * 50)
+        print("\nFINAL REPORT:")
+        print(engine.generate_final_report())
+        print("=" * 50)
+
+        xml_payloads = engine.generate_panorama_payloads()
+        total_commands = sum(len(commands_list) for commands_list in xml_payloads.values())
+        print(f"\nGenerated {total_commands} ready XML remediation payload strings.")
+
 
     except (ConnectionError, RuntimeError) as err:
-        print(f"\n[CRITICAL ERROR] Run execution halted: {err}")
+        print(f"\n[ERROR] Execution halted: {err}")
 
-def main():
-    print("Calling entry method...")
 
 
 if __name__ == "__main__":
