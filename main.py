@@ -100,17 +100,24 @@ def main():
         print("Generating normalised firewall rules...")
         final_rules = normalise_firewall_rules(raw_rules, objects_registry, service_registry)
 
-        # Distribute virtual firewall boundaries across rules for the multi-firewall simulation
-        # Since we use Sentry as the perimeter, we tag rules based on your network architecture
-        for idx, r in enumerate(final_rules):
-            # Safely cycle through raw_rules indices using modulo (%)
-            corresponding_raw = raw_rules[idx % len(raw_rules)]
-            # Rules with '_P' in the name are perimeter (Sentry), others are internal (to be handled later)
-            r.firewall_name = "Sentry" if "_P" in corresponding_raw["name"] else "Internal-Downstream"
+        # List the existing firewalls from the configuration
+        # This reads the 'firewall_name' attribute directly from the FirewallRule dataclass
+        discovered_fws = set(getattr(r, 'firewall_name', 'Unknown-FW') for r in final_rules)
+
+        print("\nFirewalls present in your Panorama configuration:")
+        for fw in discovered_fws:
+            print(f" - {fw}")
+
+        # Then present the user prompt, asking for which firewall is the perimeter one
+        perimeter_input = input("\nEnter the exact name of the perimeter Firewall [Default: Sentry]: ").strip()
+
+        # If the user just presses Enter, it safely defaults to "Sentry"
+        perimeter_name = perimeter_input if perimeter_input else "Sentry"
+        print(f"--> Using '{perimeter_name}' as the perimeter firewall between the network and public internet .")
 
         # Now execute core analysis algorithms (rules + objects + reporting)
         print("[PROCESSING] Algorithm 1: Inter-Firewall matrix validation...")
-        contradictions = analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry")
+        contradictions = analyse_inter_firewall_policies(final_rules, perimeter_name=perimeter_name)
 
         print("[PROCESSING] Algorithm 2: Correlating traffic logs and DNS cache...")
         anomalies = analyse_config_objects(running_config_xml, traffic_logs_csv, final_rules)
@@ -128,10 +135,8 @@ def main():
         total_commands = sum(len(commands_list) for commands_list in xml_payloads.values())
         print(f"\nGenerated {total_commands} ready XML remediation payload strings.")
 
-
     except (ConnectionError, RuntimeError) as err:
         print(f"\n[ERROR] Execution halted: {err}")
-
 
 
 if __name__ == "__main__":

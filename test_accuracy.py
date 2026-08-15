@@ -4,7 +4,6 @@
 Algorithm accuracy metric evaluation; checks accuracy using a confusion matrix to calculate performance scores,
 aiming to minimise false-positive alerts on clean rules
 """
-#import pytest
 from generate_test_data import generate_synthetic_xml_and_csv
 from data_processing import parse_xml, parse_objects, normalise_firewall_rules, parse_service_objects
 from analysis import analyse_inter_firewall_policies
