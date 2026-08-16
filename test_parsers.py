@@ -177,7 +177,6 @@ def test_normalise_firewall_rules_mapping():
     """
     Confirms rule text variables are correctly transformed into standardised FirewallRule instances
     :return:
-    (failed)
     """
     mock_raw_rules = [{
         "name": "Test-Rule",
@@ -185,22 +184,27 @@ def test_normalise_firewall_rules_mapping():
         "sources": ["any"],
         "destinations": ["SERVER-OBJ"],
         "src_ports": ["any"],
-        "dst_ports": ["80"],
+        "dst_ports": ["test-port-ref"],
         "action": "allow"
     }]
 
     # add mock_service_registry
+    mock_service_registry = {
+        "test-port-ref": (53, 53)
+    }
 
 
     mock_objects_registry = {
         "SERVER-OBJ": {"ip": "192.168.1.50", "type": "ip-netmask"}
     }
 
-    normalised = normalise_firewall_rules(mock_raw_rules, mock_objects_registry)
+    normalised = normalise_firewall_rules(mock_raw_rules, mock_service_registry, mock_objects_registry)
     assert len(normalised) == 1
 
     rule_obj = normalised[0]
     assert rule_obj.ip_version == 4
     assert rule_obj.action == "allow"
+    assert rule_obj.dst_port_start == 53
+    assert rule_obj.dst_port_end == 53
     assert rule_obj.dst_expected_identity == "SERVER-OBJ"
     assert rule_obj.dst_ip_start == 3232235826  # Integer version of 192.168.1.50

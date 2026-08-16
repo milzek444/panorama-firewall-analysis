@@ -16,7 +16,6 @@ def test_analysis_pipeline_accuracy():
     Recall) Out of all the flaws that exist in the system, how many did the system find?
     F1) Combined average of the two above
     :return:
-    (failed)
     """
     # Create a synthetic data set with a specified number of flaws
     xml_data, csv_data, truth = generate_synthetic_xml_and_csv(num_rules=50, num_objects=50, flaw_ratio=0.2)

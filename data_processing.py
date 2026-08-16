@@ -305,8 +305,10 @@ def normalise_firewall_rules(raw_rules: list[dict], service_registry: dict, obje
                     if "udp" in dst_port.lower():
                         protoc = "udp"
 
-                    # s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
-                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"], protoc)
+                    s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
+                        # ^^^ raw["..."] evaluates to a list, ['any']
+                        # but raw["..."][0] extracts first value inside that list 'any', returns string
+                    # s_port_start, s_port_end = port_to_range_ints(raw["src_ports"], protoc)
                     # d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
                     # check service registry
                     if dst_port in service_registry:
