@@ -89,7 +89,7 @@ def run_performance_benchmarks():
     plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}')) # Add vals w/ commas (e.g., "200,000")
 
     plt.tight_layout()
-    plt.savefig('../secure_data/firewall_performance_scaling_profiles_testtwo.png')
+    plt.savefig('firewall_performance_scaling_profiles_test.png')
     print("\n[SUCCESS] Scalability chart compiled and saved as 'firewall_performance_scaling_profiles_test.png'")
     plt.show()
 
