@@ -1,5 +1,5 @@
 """
-(5) test_reporting.py
+test_reporting.py
 
 End-to-end reporting engine verification. Validates that the reporting & remediation class functions
 process the outputs from prior phases correctly, verifying risk descriptions, raw Panorama API config payloads, etc.
@@ -11,7 +11,6 @@ from analysis import PolicyContradiction, ObjectAnomaly, FirewallRule, Reporting
 def mock_anomalies():
     """
     Builds controlled policy flaws to check validation accuracy.
-    :return:
     """
     rule_sample = FirewallRule(
         ip_version=4, protocol="tcp",
@@ -46,8 +45,8 @@ def mock_anomalies():
 def test_reporting_engine_output_logic(mock_anomalies):
     """
     Verifies that generated reports correctly display the risk descriptions and XML configuration payloads
-    :param mock_anomalies:
-    :return:
+    :param mock_anomalies
+    :return: pass/fail
     """
     contradictions, anomalies = mock_anomalies
     engine = ReportingRemediationEngine(contradictions, anomalies)

@@ -1,20 +1,25 @@
 """main.py"""
 from panos.panorama import Panorama
 from panos.errors import PanDeviceError
-import xml.etree.ElementTree as ET
 
 from analysis import analyse_inter_firewall_policies, ReportingRemediationEngine, analyse_config_objects
 from data_processing import parse_objects, parse_xml, normalise_firewall_rules, parse_service_objects
+
+import xml.etree.ElementTree as ET
+
+# A basic mock traffic log payload string for testing analysis
+MOCK_CSV_DATA = "Source address,Destination address,Source User,Destination User\n10.0.0.1,192.168.1.1,test,test"
 
 
 class PanoramaConnection:
     # Managing secure operational connections and data collection layers with the correct intended Panorama instance.
     def __init__(self, hostname: str, api_key: str):
-        self.hostname = hostname
-        self._api_key = api_key
-        self.pan_device = None   # the Panorama device
+        self.hostname = hostname # Hostname or IP of device for API connections
+        self._api_key = api_key # The API Key for connecting to the device's API
+        self.pan_device = None   # the Panorama device instance
 
     def connect(self) -> bool:
+        # Connect to Panorama instance given hostname and API key
         try:
             self.pan_device = Panorama(self.hostname, api_key=self._api_key)
             self.pan_device.refresh_system_info()
@@ -25,7 +30,10 @@ class PanoramaConnection:
             raise ConnectionError(f"Network connection failure: {e}")
 
     def download_running_config(self) -> str:
-        # Requests and returns the active running configuration as an XML string
+        """
+        Requests and returns the active running configuration as an XML string
+        :return: downloaded XML config file
+        """
         if not self.pan_device:
             raise RuntimeError("Cannot request configuration: device is not connected.")
         try:
@@ -35,7 +43,10 @@ class PanoramaConnection:
             raise RuntimeError(f"API Error fetching running config: {e}")
 
     def download_traffic_logs(self) -> str:
-        """Asynchronously requests traffic logs over a rolling day timeframe window, returning a CSV string."""
+        """
+        Asynchronously requests traffic logs over a rolling day timeframe window, returning a CSV string.
+        :return: CSV traffic logs
+        """
         if not self.pan_device:
             raise RuntimeError("Cannot request traffic logs. Device is not connected.")
 
@@ -61,18 +72,15 @@ class PanoramaConnection:
             raise RuntimeError(f"Traffic log generation failed or was disabled: {e}")
 
     def disconnect(self):
-        """Cleans up internal connection handles safely."""
+        # Safely disconnect from Panorama instance
         self.pan_device = None
 
 
 def main():
     print("Calling entry method...")
 
-    # connect_to_panorama()
     panorama_ip = input("Enter Panorama Address: ").strip()
     api_k = input("Enter valid API key: ").strip()
-
-    # days = 45   # traffic log should be 45 days
 
     # Initialise connection manager
     connection = PanoramaConnection(hostname=panorama_ip, api_key=api_k)
@@ -111,7 +119,7 @@ def main():
         # Then present the user prompt, asking for which firewall is the perimeter one
         perimeter_input = input("\nEnter the exact name of the perimeter Firewall [Default: Sentry]: ").strip()
 
-        # If the user just presses Enter, it safely defaults to "Sentry"
+        # If the user just presses Enter, it defaults to "Sentry"
         perimeter_name = perimeter_input if perimeter_input else "Sentry"
         print(f"--> Using '{perimeter_name}' as the perimeter firewall between the network and public internet .")
 
@@ -141,3 +149,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # run_performance_benchmarks()

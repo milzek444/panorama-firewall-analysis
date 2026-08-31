@@ -1,1 +1,4 @@
 .venv/
+*.xml
+secure_data/
+.env # Do not track local environment configs

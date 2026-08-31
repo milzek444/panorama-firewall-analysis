@@ -6,12 +6,12 @@ on firewall XML configuration and CSV traffic data prior to main  analysis
 
 """
 import io
-import ipaddress  # for handling IP addresses
-import socket  # for reverse DNS queries
-import csv    # for handling traffic logs
-from dataclasses import dataclass   # for firewall rule dataclass
-import xml.etree.ElementTree as ET   # for parsing XML
-# For the following imports, must have pan-os-python SDK installed using pip
+import ipaddress
+import socket
+import csv
+import xml.etree.ElementTree as ET
+
+from dataclasses import dataclass
 
 dns_cache = {}    # store information about queried IPs and their observed identities
 
@@ -28,18 +28,16 @@ class FirewallRule:
     dst_port_end: int
     action: str   # allow / deny
     protocol: str
-    ip_version: int   # 4 or 6, used to prevent cross-protocol mixing
+    ip_version: int   # (IPv)4 or 6, used to prevent cross-protocol mixing
     firewall_name: str | None
     src_expected_identity: str | None    # from XML, e.g., "Finance-Server", aka src_xml_object
     dst_expected_identity: str | None
-    src_observed_identity: str | None    # !! this may NOT BE NEEDED; we can use the DNS cache instead ==> no problem
-                                         # ANS) no problem in keeping it for now unless issues appear
-    dst_observed_identity: str | None    # (p2) hostname from reverse DNS, e.g.,"finance-01.york.ac.uk"
+    src_observed_identity: str | None
+    dst_observed_identity: str | None    # stores the hostname from reverse DNS, e.g.,"finance-01.york.ac.uk"
                                          # if IP is in traffic logs, expected = observed
                                          # else, do reverse DNS, then record that as observed
 
 
-# translating common <service> tag values in <rules> that are not raw port values
 SERVICE_PORT_MAPPING = {
     "application-default": (0, 65535), # Evaluated dynamically or kept broad for safety
     "any": (0, 65535),
@@ -66,9 +64,8 @@ SERVICE_PORT_MAPPING = {
 def parse_service_objects(xml_data: str) -> dict[str, tuple[int, int]]:
     """
     Parses custom service objects defined in the XML using XPaths, complementary to SERVICE_PORT_MAPPING dictionary
-    Maps service object names to their true (start_port, end_port) integer ranges.
-    :param xml_data:
-    :return:
+    :param xml_data: configuration data
+    :return: dictionary that maps service object names to their true (start_port, end_port) integer ranges.
     """
     root = ET.fromstring(xml_data)
     service_registry = {}
@@ -114,7 +111,6 @@ def ip_to_range_ints(ip_str: str) -> tuple[int, int, int]:
     if ip_str.lower() == "any":
         return 0, max_int, version
 
-    # "-" means ranged IP string. here, get the two integers from start and end of the range.
     if '-' in ip_str:
         try:
             start, end = ip_str.split('-')
@@ -150,7 +146,7 @@ def port_to_range_ints(port_str: str, protocol: str) -> tuple[int, int]:
     if port_str in SERVICE_PORT_MAPPING:
         return SERVICE_PORT_MAPPING[port_str]
 
-    if "-" in port_str:   # ranged port
+    if "-" in port_str:   # ranged port, contains "-"
         try:
             start, end = port_str.split('-', 1)
             return int(start.strip()), int(end.strip())
@@ -172,21 +168,12 @@ def parse_xml(xml_data: str) -> list[dict]:
     for P1: all data in format of (protocol, sourceIP, destinationIP, destinationPort, action)
     for P2: all data in format of (protocol, sourceIP, destinationIP, destinationPort, action), and if object is used
     for sourceIP, object's name recorded in panorama (which links to sourceIP)
-
-    and for considering CIDR:
-
-    CIDR subnets, variable IP & port ranges: python libraries like ipaddress can convert CIDR subnets into ranged
-    numerical integers, also consisting of a start and end value.
-
-    !!! maybe this should return list[some other data type]???
     """
     print("Calling parse_xml...")
     root = ET.fromstring(xml_data)   #turn raw XML string into a live, searchable tree in memory
     # root becomes root node of entire config tree
     raw_rules = []
     for rule in root.findall(".//security/rules/entry"):   # .// is XPath syntax; search anywhere at any depth
-        # extract rule attributes and put into dictionary "rule_data"
-        # this dictionary is then used as an arg for function to normalise
         if rule.findtext("disabled") == "yes":
             continue  # Skip disabled rules; they are inactive
 
@@ -201,7 +188,7 @@ def parse_xml(xml_data: str) -> list[dict]:
             "src_ports": ["any"],
             "dst_ports": [m.text for m in rule.findall(".//service/member")],
             "action": rule.findtext("action", "allow"),  # look for <action> tags, if missing from XML,
-                                                                    # then default to "allow"
+                                                                     # then default to "allow"
             "negate_source": negate_src,
             "negate_dest": negate_dst
         }
@@ -212,15 +199,11 @@ def parse_xml(xml_data: str) -> list[dict]:
 def parse_objects(xml_data: str) -> dict[str, dict]:
     """
     Extracts and processes Address objects & Address Group objects from the running configuration
-    :param xml_data:
-    :return:
+    :param xml_data: configuration data
+    :return: dictionary containing all object entries
     """
     root = ET.fromstring(xml_data)
     objects_registry = {}
-    # group_tags = {}
-    #
-    # def get_tags(elem):
-    #     return [t.text for t in elem.findall(".//tag/member")]
 
     for addr in root.findall(".//address/entry"):  # go through all addr. object entries, get their names and tags
         name = addr.get("name")
@@ -228,8 +211,6 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
         if not name:
             continue
 
-        # if "HOST" in tags:   # ITS regulations say that "HOST" tagged devices can be
-        #                      # searched for reassignment/decommissioned
         obj_type = None
         ip_val = None
         for child in addr:
@@ -241,16 +222,11 @@ def parse_objects(xml_data: str) -> dict[str, dict]:
         if ip_val: #name and ip_val:
             objects_registry[name] = {"ip": ip_val, "type": obj_type}
 
-    # for group in root.findall(".//address-group/entry"):  # repeat for address groups & AG objects
-    #     name = group.get("name")
-    #     group_tags[name] = get_tags(group)
 
     for group in root.findall(".//address-group/entry"):
         group_name = group.get("name")
-        # g_tags = group_tags.get(group_name, [])
         if not group_name:
             continue
-
 
         for member in group.findall(".//static/member"):
             mem_name = member.text
@@ -267,10 +243,10 @@ def get_negated_ranges(start: int, end: int, max_int: int) -> list[tuple[int, in
 
     e.g., if it negates 10.0.0.0/24 (integer range A to B), generate two windows of allowed values:
     (0, A-1) and (B+1, max_int)
-    :param start:
-    :param end:
-    :param max_int:
-    :return:
+    :param start: start of range
+    :param end: end of range
+    :param max_int: 65536
+    :return: list of tuples showing inputted range
     """
     ranges = []
     if start > 0:
@@ -283,8 +259,10 @@ def get_negated_ranges(start: int, end: int, max_int: int) -> list[tuple[int, in
 def normalise_firewall_rules(raw_rules: list[dict], service_registry: dict, objects_registry: dict) -> list[FirewallRule]:
     """
     Transforms raw parsed rule strings into complete FirewallRule dataclass instances
-    :param: utilises
-    :return: List of all objects that fit the required tags, + their required info: IP, etc.
+    :param raw_rules: all firewall rules
+    :param service_registry: all service objects
+    :param objects_registry: all address objects + address group objects
+    :return:  List of all objects that fit the required tags, + their required info: IP, etc.
     """
     print("Calling rule normalisation...")
     normalised_rules = []
@@ -299,17 +277,12 @@ def normalise_firewall_rules(raw_rules: list[dict], service_registry: dict, obje
                     dst_ip_raw = objects_registry[dst]["ip"] if dst_xml_object else dst
                     src_start, src_end, src_version = ip_to_range_ints(src_ip_raw)
                     dst_start, dst_end, dst_version = ip_to_range_ints(dst_ip_raw)
-                    #!!!!! how about getting the src&dst observed identities
-
                     protoc = "tcp"
                     if "udp" in dst_port.lower():
                         protoc = "udp"
 
                     s_port_start, s_port_end = port_to_range_ints(raw["src_ports"][0], protoc)
-                        # ^^^ raw["..."] evaluates to a list, ['any']
-                        # but raw["..."][0] extracts first value inside that list 'any', returns string
-                    # s_port_start, s_port_end = port_to_range_ints(raw["src_ports"], protoc)
-                    # d_port_start, d_port_end = port_to_range_ints(dst_port, protoc)
+
                     # check service registry
                     if dst_port in service_registry:
                         d_port_start, d_port_end = service_registry[dst_port]
@@ -334,8 +307,6 @@ def normalise_firewall_rules(raw_rules: list[dict], service_registry: dict, obje
                         action=raw["action"],
                         src_expected_identity=src_xml_object,
                         dst_expected_identity=dst_xml_object
-                        # ignore observed src/dst identities; normaliser doesnt have access to
-                        # traffic logs or DNS cache needed to discover this observed identity
                     )
                     normalised_rules.append(rule_obj)
     return normalised_rules

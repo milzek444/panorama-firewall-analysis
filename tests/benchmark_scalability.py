@@ -1,13 +1,13 @@
 """
-(4) benchmark_scalability.py
+benchmark_scalability.py
 
 Big-O performance scalability benchmarking; handles efficiency analysis requirements.
 Benchmarks execution speeds across multiple rule volumes, maps the time to ms, and compares runtime trends
 directly alongside theoretical Big-O complexity curves
 """
-
 import time
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from unittest import mock
 from generate_test_data import generate_synthetic_xml_and_csv
 from data_processing import parse_xml, normalise_firewall_rules, parse_service_objects
@@ -18,24 +18,28 @@ def run_performance_benchmarks():
     """
     Measures the scalability of processing algorithms across increasing matrix scales
     Saves the data and builds performance curves
-    :return:
+    :return: Saved .png image showing two curves representing scalability performance
     """
-    scale_steps = [100, 1000, 5000, 10000]
+    rule_steps = [100, 1000, 5000, 10000]
+    object_steps = [25, 120, 600, 1200]
+
     policy_runtimes = []
     object_runtimes = []
 
     print("Beginning performance benchmarking...")
 
-    for size in scale_steps:
-        # Generate target matrix scale metrics
-        xml_data, csv_data, _ = generate_synthetic_xml_and_csv(num_rules=size, num_objects=size, flaw_ratio=0.05)
+    # Iterate by index slot since each array scales at different rates
+    for i in range(len(rule_steps)):
+        r_size = rule_steps[i]
+        o_size = object_steps[i]
+
+        xml_data, csv_data, _ = generate_synthetic_xml_and_csv(num_rules=r_size, num_objects=o_size, flaw_ratio=0.05)
 
         raw_rules = parse_xml(xml_data)
         obj_reg = parse_objects(xml_data)
         service_reg = parse_service_objects(xml_data)
 
         # Inject structural multi-firewall boundaries into the dataclass profile objects
-        # final_rules = parse_objects(raw_rules, obj_reg)
         final_rules = normalise_firewall_rules(raw_rules, service_reg, obj_reg)
         for idx, r in enumerate(final_rules):
             # Safely cycle through raw_rules indices using modulo (%)
@@ -44,15 +48,14 @@ def run_performance_benchmarks():
 
         # Benchmark 1: Policy contradiction checks
         start_time = time.perf_counter()
-        analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry") # !!!!! perimeter name subject to change
-                                                                              # (not here though; this is for testing)
+        analyse_inter_firewall_policies(final_rules, perimeter_name="Sentry")
         end_time = time.perf_counter()
 
         policy_duration_ms = (end_time - start_time) * 1000.0
         policy_runtimes.append(policy_duration_ms)
 
         # Benchmark 2: Configuration object tracking via mock DNS
-        with mock.patch('data_processing.reverse_dns', return_value="HOST-SRV-MOCK.campus.edu"):  # !!!!! Subject to change
+        with mock.patch('data_processing.reverse_dns', return_value="HOST-SRV-MOCK.campus.edu"):
             start_time = time.perf_counter()
             analyse_config_objects(xml_data, csv_data, final_rules)
             end_time = time.perf_counter()
@@ -61,7 +64,7 @@ def run_performance_benchmarks():
             object_runtimes.append(object_duration_ms)
 
         print(
-            f"Scale {size:5d} elements -> "
+            f"Rule Scale {r_size:5d} & Object Scale {o_size:5d} elements -> "
             f"Policy Analysis: {policy_duration_ms:8.2f}ms | Object Validation: {object_duration_ms:8.2f}ms")
 
     # Plot performance results using matplotlib
@@ -69,26 +72,24 @@ def run_performance_benchmarks():
 
     # Plotting the policy analysis curve
     plt.subplot(1, 2, 1)
-    plt.plot(scale_steps, policy_runtimes, marker='o', colour='blue', label='Runtime')
+    plt.plot(rule_steps, policy_runtimes, marker='o', color='blue', label='Runtime')
     plt.title('Algorithm 1: Policy Scaling Trend')
     plt.xlabel('Number of Rules')
     plt.ylabel('Execution Time (ms)')
     plt.grid(True)
-
-    # Add theoretical reference boundary marker notes
-    plt.figtext(0.15, 0.02,
-                "Theoretical Complexity: O(N * M) worst-case, reduced via segment grid grouping optimisations.",
-                fontsize=8, colour='dimgray')
+    plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
 
     # Object validation curve plotting
     plt.subplot(1, 2, 2)
-    plt.plot(scale_steps, object_runtimes, marker='s', colour='orange', label='Runtime')
+    plt.plot(object_steps, object_runtimes, marker='s', color='orange', label='Runtime')
     plt.title('Algorithm 2: Object Validation Trend')
     plt.xlabel('Number of Address Objects')
     plt.ylabel('Execution Time (ms)')
     plt.grid(True)
+    plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}')) # Add vals w/ commas (e.g., "200,000")
 
     plt.tight_layout()
-    plt.savefig('firewall_performance_scaling_profiles_test.png')
+    plt.savefig('../secure_data/firewall_performance_scaling_profiles_testtwo.png')
     print("\n[SUCCESS] Scalability chart compiled and saved as 'firewall_performance_scaling_profiles_test.png'")
     plt.show()
+

@@ -3,29 +3,28 @@ analysis.py
 
 This module contains the primary methods for inter-firewall policy analysis and Panorama configuration analysis
 """
-
 from dataclasses import dataclass, field
 from collections import defaultdict
 from data_processing import FirewallRule, parse_objects, search_traffic, reverse_dns
 
 @dataclass
 class PolicyContradiction:
-    category: str  # "Broad Port Exposure", "Subnet Contradiction", etc.
-    perimeter_rule: FirewallRule   # the perimeter & internal rule (below) which contradict each other
+    category: str
+    perimeter_rule: FirewallRule
     internal_rule: FirewallRule
-    description: str   # description of the contradiction
+    description: str
     security_impact: str
 
 @dataclass
 class ObjectAnomaly:
-    category: str  # One of two; "Decommissioned Object", "IP Reuse Mismatch"
+    category: str
     object_name: str  # Holds the exact Panorama configuration object name (e.g., HR-Database-Server) <display-name>
     ip_address: str
     expected_hostname: str  # the name present in XML for that object
     observed_hostname: str | None  # the name present in CSV traffic logs / DNS resolve
-    affected_rules: list[FirewallRule] = field(default_factory=list) # for a decom. object, stores the rules that are
-                                                                     # affected/broken because of this object change
-                                                                     # mostly rules that reference these broken objects
+    affected_rules: list[FirewallRule] = field(default_factory=list) # for a decom. object, stores the rules that are..
+                                                                     # ..affected/broken because of this object change..
+                                                                     # ..mostly rules that reference these objects
 
 
 def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_name: str) -> list[
@@ -33,24 +32,17 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
     """
     Identifies policy contradictions where a perimeter ALLOW rule is blocked
     by an internal downstream firewall's non-ALLOW policy.
-    :param all_rules:
+    :param all_rules: rules to be analysed
     :param perimeter_name: Name of perimeter firewall, e.g., "Sentry", "Perimeter"
-    :return:
+    :return: list of policy contradictions, in dataclass format, across all firewalls
     """
     contradictions = []  # hold the contradictions
 
     # Create two lists; one for all the rules that say "allow" for perimeter FW, other for "Deny" rules in other FWs
-    # Group the rules in dicts efficiently based on (ip_version, protocol) to minimise redundant iterations
-    # for defaultdict, if you try to access a key that doesn't exist yet, it will be created & assigned empty list
-    # No need to check if the key exists first
-    # perimeter_allow = defaultdict(list)
-    # internal_deny = defaultdict(list)
     perimeter_allow_test: defaultdict[tuple[int, str], list[FirewallRule]] = defaultdict(list)
-        # defaultdict data type is [key_type, value_type]. key_type is based on key variable below, subject to change
     internal_deny_test: defaultdict[tuple[int, str], list[FirewallRule]] = defaultdict(list)
 
-    for rule in all_rules:   # go through all collected firewall rules
-        # This line of code defaults to assuming everything is a perimeter rule unless a field says otherwise
+    for rule in all_rules:
         is_perimeter = getattr(rule, 'firewall_name', perimeter_name) == perimeter_name
 
         key = (rule.ip_version, rule.protocol.lower())  # e.g., (IPv4, tcp) - used as key for dictionary
@@ -62,10 +54,10 @@ def analyse_inter_firewall_policies(all_rules: list[FirewallRule], perimeter_nam
             internal_deny_test[key].append(rule)
 
     # Perform rule overlap checks
-    for key, p_rules in perimeter_allow_test.items():  # iterate through all perimeter FW rules with "allow" action
+    for key, p_rules in perimeter_allow_test.items():
         i_rules = internal_deny_test.get(key, [])  # get a group of perimeter allow rules (e.g., IPv4, TCP),
                                                      # and finds corresponding group of internal deny rules (i_rules)
-        if not i_rules:  # if no internal deny rules match for that specific perimeter_allow rule thing, skip
+        if not i_rules:
             continue
 
         for p_rule in p_rules:
@@ -126,8 +118,8 @@ def build_policy_tree(all_rules: list[FirewallRule]) -> dict:
     """
     Constructs an optimised multi-dimensional in-memory policy lookup tree with the following structure:
     Protocol -> Source IP range -> Destination IP range -> Destination port -> [Rules]
-    :param all_rules:
-    :return:
+    :param all_rules: all rules across all firewalls
+    :return: multi-dimensional tree structure
     """
     # Using nested lambda definitions to create auto-generating branch dictionary layers
     tree = lambda: defaultdict(tree)
@@ -151,10 +143,10 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
     """
     Flags stale, decommissioned or mismatched Panorama Object identities by correlating running configuration data,
     traffic logs and parsed rules
-    :param xml_data:
-    :param csv_data:
-    :param all_rules:
-    :return:
+    :param xml_data: XML Configuration data
+    :param csv_data: CSV traffic log data
+    :param all_rules: All firewall rules
+    :return: list of object anomalies, describing category of anomaly, affected rules, etc.
     """
     anomalies = []
 
@@ -170,22 +162,21 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
                 for dst_range in src_range.values():
                     for port_range in dst_range.values():
                         for rule in port_range.get("rules", []):
-                            if rule.src_xml_object == object_name or rule.dst_xml_object == object_name:
+                            if rule.src_expected_identity == object_name or rule.dst_expected_identity == object_name:
                                 matched.append(rule)
         return matched
 
     for obj_name, metadata in objects_registry.items():
         # objects_registry is a dictionary mapping an object's name to its details, "metadata" holds dictionary of
         # attributes for that object (e.g., raw IP value, object type, tags)
-        ip_addr = metadata["ip"] # metadata holds dictionary of attributes for that object, e.g., raw IP value, obj type
+        ip_addr = metadata["ip"]
         if ip_addr == "Group Reference":
-            continue  # Bypass address group structural headers, target individual hosts only
+            continue
 
         # Correlate with traffic logs using search logic; for each obj, run search_traffic helper and return T/F if seen
         seen_in_traffic, _ = search_traffic(csv_data, ip_addr)
 
-        if not seen_in_traffic:  # if the object is not found in CSV, then it's probably inactive or decommissioned
-            # Classify as potentially inactive or decommissioned
+        if not seen_in_traffic:
             affected = find_affected_rules_in_tree(obj_name) # link all rules that use this object
             anomalies.append(ObjectAnomaly(
                 category="Decommissioned Object",
@@ -198,12 +189,8 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
         else:   # if the IP IS active in traffic, DNS querying used to find who current uses/owns it
             observed_dns = reverse_dns(ip_addr)
             if observed_dns:
-                # Basic ITS baseline check: Verify if object name matches or is contained inside DNS string
-                # e.g., if object name is "ITS-WEB-SRV01" but resolves to "honeypot.campus.edu"
                 expected_clean = obj_name.lower().replace("-", "")
                 observed_clean = observed_dns.lower().replace("-", "")
-                # if the expected identity holding object (from Panorama) != observed one from DNS, IP likely reassigned
-                # but still points to old name, so it's assigned an "IP reuse mismatch" anomaly
                 if expected_clean not in observed_clean and observed_clean not in expected_clean:
                     affected = find_affected_rules_in_tree(obj_name)
                     anomalies.append(ObjectAnomaly(
@@ -216,97 +203,6 @@ def analyse_config_objects(xml_data: str, csv_data: str, all_rules: list[Firewal
                     ))
 
     return anomalies
-
-# def generate_final_report(contradictions: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> str:
-#     """
-#     Consolidates findings from cross-firewall and configuration anomaly analysis into actionable reports and XML fixes
-#     for the administrator.
-#     :param contradictions:
-#     :param anomalies:
-#     :return:
-#     """
-#     report_output = []
-#     report_output.append("=" * 40)
-#     report_output.append("PANORAMA FIREWALL SECURITY & CONFIGURATION AUDIT REPORT")
-#     report_output.append("=" * 40 + "\n")
-#     # Section 1: Policy Contradiction; prints out list of policy contradictions
-#     report_output.append("1: INTER-FIREWALL POLICY CONTRADICTIONS")
-#     report_output.append("-" * 40)
-#     if not contradictions:
-#         report_output.append("No inter-firewall policy contradictions identified between the perimeter "
-#                              "and downstream firewalls.\n")
-#     for idx, con in enumerate(contradictions, 1):  # go through each inter-firewall contradiction found
-#         report_output.append(f"  [{idx}] Category: {con.category}")  # idx prints out index number [1], [2], etc.
-#         report_output.append(f"      Description: {con.description}")
-#         report_output.append(f"      Security Impact: {con.security_impact}")
-#         # extract info from the underlying rules causing the mismatch, so the admin knows which assets are affected
-#         report_output.append(
-#             #f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_xml_object}) -> Dst Object ({con.perimeter_rule.dst_xml_object})")
-#             f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_expected_identity}) -> Dst Object"
-#             f" ({con.perimeter_rule.dst_expected_identity})")
-#         report_output.append(f"      Internal Blocking Rule: Action ({con.internal_rule.action.upper()})\n")
-#
-#     # Section 2: Asset inactivity & Identity Reassignments
-#     report_output.append("2. CONFIGURATION OBJECT & IDENTITY VALIDATION")
-#     report_output.append("-" * 40)
-#     if not anomalies:
-#         report_output.append("All parsed configuration host mappings match active network states.\n")
-#     for idx, anom in enumerate(anomalies, 1):
-#         report_output.append(f"  [{idx}] Category: {anom.category}")
-#         report_output.append(f"      Object Ref: {anom.object_name} ({anom.ip_address})")
-#         if anom.category == "Decommissioned Object":
-#             report_output.append(f"      Reason: Zero matching entries found across recent traffic data.")
-#             report_output.append(f"      Operational Risk: Orphaned rule configuration overhead.")
-#         else:
-#             report_output.append(f"      Expected Identity: {anom.expected_hostname}")
-#             report_output.append(f"      Observed Identity (DNS): {anom.observed_hostname}")
-#             report_output.append(f"      Operational Risk: Threat vector. IP address reassigned without rule update.")
-#         report_output.append(f"      Impacted Policy Paths Count: {len(anom.affected_rules)} rules\n")
-#
-#     return "\n".join(report_output)
-
-# def generate_panorama_payloads(contradictions: list[PolicyContradiction], anomalies: list[ObjectAnomaly]) -> dict[str, list[str]]:
-#     """
-#     Constructs valid Panorama XML API payloads for remediation.
-#     :param contradictions:
-#     :param anomalies:
-#     :return: a dictionary mapping object groups to XML elements
-#     """
-#     payloads = defaultdict(list)  # benefits of defaultdict mentioned earlier
-#     for anom in anomalies: # go through all panorama anomalies
-#         #1: Remediation for decommissioned objects (API query for deletion)
-#         if anom.category == "Decommissioned Object":
-#             # Construct an API delete request targeting specific XML node path
-#             # Case 1: If asset is stale, build API delete request targeting that
-#             # precise XML node path (/config/shared/address...)
-#             xml_delete = f"<delete xpath=\"/config/shared/address/entry[@name='{anom.object_name}']\"/>"
-#             payloads["decommission_cleanup"].append(xml_delete)
-#
-#         elif anom.category == "IP Reuse Mismatch" and anom.observed_hostname:
-#             #2: Remediation for reused IP for objects (generate tracking Tag updates to isolate entry)
-#             # Case 2: If asset has identity mismatch, build API set statement that adds tag onto object
-#             # FLAG-REUSED-IDENTITY tag on the object allows for administrators to easily isolate it in
-#             # Panorama's web interface
-#             xml_tag_update = (
-#                 f"<set xpath=\"/config/shared/address/entry[@name='{anom.object_name}']/tag\">"
-#                 f"<member>FLAG-REUSED-IDENTITY</member>"
-#                 f"</set>"
-#             )
-#             payloads["identity_updates"].append(xml_tag_update)
-#
-#     #3: Remediation for policy/rule contradictions
-#     for con in contradictions:
-#         if con.category == "Broad Port Exposure":
-#             # Injecting safety comments or administrative logging rules for optimisation pipelines
-#             # For safety we tag rules requiring review instead of dropping policies automatically
-#             xml_policy_tag = (
-#                 f"<set xpath=\"/config/shared/pre-rulebase/security/rules/entry[@name='Audit_Required']\">"
-#                 f"<tag><member>AUDIT-BROAD-PORT</member></tag>"
-#                 f"</set>"
-#             )
-#             payloads["policy_review_tags"].append(xml_policy_tag)
-#
-#     return dict(payloads)
 
 
 class ReportingRemediationEngine:
@@ -322,26 +218,26 @@ class ReportingRemediationEngine:
 
     def generate_final_report(self) -> str:
         """
-        Consolidates findings from cross-firewall and configuration anomaly analysis into actionable reports and XML fixes
-        for the administrator.
+        Consolidates findings from cross-firewall and configuration anomaly analysis into actionable reports and XML
+        fixes for the administrator.
+        :return: Formatted report on findings plus remediation suggestions
         """
         report_output = []
         report_output.append("=" * 40)
         report_output.append("PANORAMA FIREWALL SECURITY & CONFIGURATION AUDIT REPORT")
         report_output.append("=" * 40 + "\n")
         # Section 1: Policy Contradiction; prints out list of policy contradictions
+
         report_output.append("1: INTER-FIREWALL POLICY CONTRADICTIONS")
         report_output.append("-" * 40)
-        if not self. contradictions:
+        if not self.contradictions:
             report_output.append("No inter-firewall policy contradictions identified between the perimeter "
                                  "and downstream firewalls.\n")
-        for idx, con in  enumerate(self.contradictions, 1):  # go through each inter-firewall contradiction found
+        for idx, con in  enumerate(self.contradictions, 1):
             report_output.append(f"  [{idx}] Category: {con.category}")  # idx prints out index number [1], [2], etc.
             report_output.append(f"      Description: {con.description}")
             report_output.append(f"      Security Impact: {con.security_impact}")
-            # extract info from the underlying rules causing the mismatch, so the admin knows which assets are affected
             report_output.append(
-                # f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_xml_object}) -> Dst Object ({con.perimeter_rule.dst_xml_object})")
                 f"      Perimeter Rule Impacted: Source Object ({con.perimeter_rule.src_expected_identity}) -> Dst Object"
                 f" ({con.perimeter_rule.dst_expected_identity})")
             report_output.append(f"      Internal Blocking Rule: Action ({con.internal_rule.action.upper()})\n")
@@ -370,25 +266,19 @@ class ReportingRemediationEngine:
     def generate_panorama_payloads(self) -> dict[str, list[str]]:
         """
         Constructs valid Panorama XML API payloads for remediation.
-        :param contradictions:
-        :param anomalies:
-        :return: a dictionary mapping object groups to XML elements
+        :return: a dictionary of payloads, holding XML queries categorised based on object anomaly
         """
-        payloads = defaultdict(list)  # benefits of defaultdict mentioned earlier
+        payloads = defaultdict(list)
         for anom in self.anomalies:  # go through all panorama anomalies
             # 1: Remediation for decommissioned objects (API query for deletion)
             if anom.category == "Decommissioned Object":
-                # Construct an API delete request targeting specific XML node path
                 # Case 1: If asset is stale, build API delete request targeting that
-                # precise XML node path (/config/shared/address...)
                 xml_delete = f"<delete xpath=\"/config/shared/address/entry[@name='{anom.object_name}']\"/>"
                 payloads["decommission_cleanup"].append(xml_delete)
 
             elif anom.category == "IP Reuse Mismatch" and anom.observed_hostname:
-                # 2: Remediation for reused IP for objects (generate tracking Tag updates to isolate entry)
                 # Case 2: If asset has identity mismatch, build API set statement that adds tag onto object
                 # FLAG-REUSED-IDENTITY tag on the object allows for administrators to easily isolate it in
-                # Panorama's web interface
                 xml_tag_update = (
                     f"<set xpath=\"/config/shared/address/entry[@name='{anom.object_name}']/tag\">"
                     f"<member>FLAG-REUSED-IDENTITY</member>"
